@@ -1,11 +1,28 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiCreatedResponse,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { JobsService } from './jobs.service';
 import { CreateJobDto, QueryJobsDto } from './dto/create-job.dto';
+import { CreateJobCategoryDto } from './dto/create-category.dto';
 
 @ApiTags('jobs')
 @Controller('jobs')
@@ -22,14 +39,43 @@ export class JobsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('EMPLOYER', 'ADMIN')
   @ApiBearerAuth()
-  myJobs(@CurrentUser() user: CurrentUserPayload) {
-    return this.svc.findByCompany(user.userId);
+  @ApiOperation({ summary: 'Get current employer jobs list and active quotas' })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        jobs: { type: 'array', items: { $ref: '#/components/schemas/Job' } },
+        totalCount: { type: 'number', description: 'Total jobs created' },
+        activeCount: { type: 'number', description: 'Total published jobs' },
+        allowedLimit: { type: 'number', description: 'Maximum active jobs allowed' },
+        canPostMore: {
+          type: 'boolean',
+          description: 'True if activeCount is less than allowedLimit',
+        },
+      },
+    },
+  })
+  async myJobs(@CurrentUser() user: CurrentUserPayload) {
+    return await this.svc.findByCompany(user.userId);
   }
 
   @Get('categories')
   @ApiOperation({ summary: 'Get all job categories' })
   getCategories() {
     return this.svc.getCategories();
+  }
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('categories') // <-- FIXED: Added explicit path 'categories' (Maps to POST /jobs/categories)
+  @ApiOperation({ summary: 'Create a job category (admin only)' })
+  @ApiCreatedResponse({
+    description: 'The category has been successfully created.',
+    type: CreateJobCategoryDto,
+  })
+  createCategory(@Body() dto: CreateJobCategoryDto) {
+    return this.svc.createCategory(dto);
   }
 
   @Get(':id')
@@ -50,7 +96,11 @@ export class JobsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('EMPLOYER', 'ADMIN')
   @ApiBearerAuth()
-  update(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload, @Body() dto: Partial<CreateJobDto>) {
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: Partial<CreateJobDto>,
+  ) {
     return this.svc.update(id, user.userId, dto);
   }
 

@@ -8,7 +8,7 @@ import { QUEUE_NAMES, ESCROW_JOBS } from '../queues/queues.constants';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-const PLATFORM_FEE_PCT = 0.10;
+const PLATFORM_FEE_PCT = 0.1;
 
 @Injectable()
 export class EscrowService {
@@ -22,9 +22,9 @@ export class EscrowService {
 
   /** Initiate escrow — returns Chapa/Telebirr payment link */
   async initiate(clientId: string, freelanceJobId: string) {
-    const job = await this.prisma.freelanceJob.findFirst({ 
+    const job = await this.prisma.freelanceJob.findFirst({
       where: { id: freelanceJobId, clientId },
-      include: { client: true, contract: true }
+      include: { client: true, contract: true },
     });
     if (!job) throw new NotFoundException('Gig not found');
 
@@ -32,25 +32,27 @@ export class EscrowService {
     // Best practice: escrow should only be initiated after a bid is accepted and a contract exists
     const grossAmount = job.contract ? job.contract.agreedAmount : job.budgetMax;
     if (!job.contract) {
-      this.logger.warn(`Escrow initiated without a contract for job ${freelanceJobId} — using budgetMax. Consider initiating escrow after bid acceptance.`);
+      this.logger.warn(
+        `Escrow initiated without a contract for job ${freelanceJobId} — using budgetMax. Consider initiating escrow after bid acceptance.`,
+      );
     }
 
-    const platformFee  = Math.round(grossAmount * PLATFORM_FEE_PCT);
-    const netAmount    = grossAmount - platformFee;
+    const platformFee = Math.round(grossAmount * PLATFORM_FEE_PCT);
+    const netAmount = grossAmount - platformFee;
 
     const escrow = await this.prisma.escrowTransaction.create({
       data: { freelanceJobId, grossAmount, platformFee, netAmount, status: 'PENDING' },
     });
 
     let checkoutUrl = `${this.config.get('FRONTEND_URL')}/freelance/pay?escrow=${escrow.id}`;
-    
+
     const chapaSecret = this.config.get<string>('CHAPA_SECRET_KEY');
     if (chapaSecret) {
       try {
         const response = await fetch('https://api.chapa.co/v1/transaction/initialize', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${chapaSecret}`,
+            Authorization: `Bearer ${chapaSecret}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -65,7 +67,7 @@ export class EscrowService {
             customization: {
               title: 'Beleqet Escrow',
               description: `Payment for Gig: ${job.title}`,
-            }
+            },
           }),
         });
 
@@ -80,7 +82,9 @@ export class EscrowService {
       }
     }
 
-    this.logger.log(`Escrow initiated: ${escrow.id} for job ${freelanceJobId} — amount: ETB ${grossAmount}`);
+    this.logger.log(
+      `Escrow initiated: ${escrow.id} for job ${freelanceJobId} — amount: ETB ${grossAmount}`,
+    );
     return { escrowId: escrow.id, checkoutUrl, grossAmount, platformFee, netAmount };
   }
 
@@ -108,10 +112,10 @@ export class EscrowService {
           eventType: 'milestone.approved',
           entityId: milestoneId,
           entityType: 'Milestone',
-          payload: { 
-            milestoneId, 
-            freelancerId: milestone.contract.freelancerId, 
-            amount: milestone.amount 
+          payload: {
+            milestoneId,
+            freelancerId: milestone.contract.freelancerId,
+            amount: milestone.amount,
           },
           processedBy: EscrowService.name,
         },
@@ -127,7 +131,10 @@ export class EscrowService {
         releaseAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
       });
     } catch (err) {
-      this.logger.error(`Failed to enqueue auto-release for milestone ${milestoneId}`, err instanceof Error ? err.stack : err);
+      this.logger.error(
+        `Failed to enqueue auto-release for milestone ${milestoneId}`,
+        err instanceof Error ? err.stack : err,
+      );
     }
 
     this.logger.log(`Milestone ${milestoneId} approved — payout queued`);

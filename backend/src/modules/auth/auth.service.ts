@@ -1,5 +1,10 @@
 import {
-  Injectable, UnauthorizedException, ConflictException, Logger, NotFoundException, BadRequestException
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  Logger,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -20,7 +25,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     @InjectQueue(QUEUE_NAMES.NOTIFICATIONS) private readonly notificationsQueue: Queue,
-  ) { }
+  ) {}
 
   async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
@@ -43,7 +48,7 @@ export class AuthService {
 
     // Fire-and-forget: email queue failure must NOT crash registration
     this.sendVerificationEmail(user.id).catch((err) =>
-      this.logger.error(`Failed to enqueue verification email for ${user.email}: ${err.message}`)
+      this.logger.error(`Failed to enqueue verification email for ${user.email}: ${err.message}`),
     );
 
     return this.issueTokens(user);
@@ -59,7 +64,13 @@ export class AuthService {
     return user;
   }
 
-  async login(user: { id: string; email: string; firstName: string; lastName: string; role: string }) {
+  async login(user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  }) {
     return this.issueTokens(user);
   }
 
@@ -93,7 +104,7 @@ export class AuthService {
         token,
         type: 'EMAIL_VERIFICATION',
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-      }
+      },
     });
 
     const verifyUrl = `${this.config.get('FRONTEND_URL')}/auth/verify-email?token=${token}`;
@@ -101,19 +112,23 @@ export class AuthService {
     await this.notificationsQueue.add(NOTIFICATION_JOBS.SEND_EMAIL, {
       to: user.email,
       subject: 'Verify your Beleqet Account',
-      html: `<p>Hi ${user.firstName},</p><p>Please verify your email by clicking the link below:</p><p><a href="${verifyUrl}">Verify Email</a></p>`
+      html: `<p>Hi ${user.firstName},</p><p>Please verify your email by clicking the link below:</p><p><a href="${verifyUrl}">Verify Email</a></p>`,
     });
   }
 
   async verifyEmail(token: string) {
     const verificationToken = await this.prisma.verificationToken.findUnique({ where: { token } });
-    if (!verificationToken || verificationToken.type !== 'EMAIL_VERIFICATION' || verificationToken.expiresAt < new Date()) {
+    if (
+      !verificationToken ||
+      verificationToken.type !== 'EMAIL_VERIFICATION' ||
+      verificationToken.expiresAt < new Date()
+    ) {
       throw new BadRequestException('Invalid or expired verification token');
     }
 
     await this.prisma.user.update({
       where: { id: verificationToken.userId },
-      data: { emailVerified: true }
+      data: { emailVerified: true },
     });
 
     await this.prisma.verificationToken.delete({ where: { id: verificationToken.id } });
@@ -131,7 +146,7 @@ export class AuthService {
         token,
         type: 'PASSWORD_RESET',
         expiresAt: new Date(Date.now() + 1 * 60 * 60 * 1000), // 1 hour
-      }
+      },
     });
 
     const resetUrl = `${this.config.get('FRONTEND_URL')}/auth/reset-password?token=${token}`;
@@ -139,7 +154,7 @@ export class AuthService {
     await this.notificationsQueue.add(NOTIFICATION_JOBS.SEND_EMAIL, {
       to: user.email,
       subject: 'Reset your Beleqet Password',
-      html: `<p>Hi ${user.firstName},</p><p>You requested a password reset. Click the link below to set a new password:</p><p><a href="${resetUrl}">Reset Password</a></p>`
+      html: `<p>Hi ${user.firstName},</p><p>You requested a password reset. Click the link below to set a new password:</p><p><a href="${resetUrl}">Reset Password</a></p>`,
     });
 
     return { success: true, message: 'If an account exists, a reset link was sent.' };
@@ -147,21 +162,33 @@ export class AuthService {
 
   async resetPassword(token: string, newPassword: string) {
     const verificationToken = await this.prisma.verificationToken.findUnique({ where: { token } });
-    if (!verificationToken || verificationToken.type !== 'PASSWORD_RESET' || verificationToken.expiresAt < new Date()) {
+    if (
+      !verificationToken ||
+      verificationToken.type !== 'PASSWORD_RESET' ||
+      verificationToken.expiresAt < new Date()
+    ) {
       throw new BadRequestException('Invalid or expired reset token');
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await this.prisma.user.update({
       where: { id: verificationToken.userId },
-      data: { passwordHash }
+      data: { passwordHash },
     });
 
-    await this.prisma.verificationToken.deleteMany({ where: { userId: verificationToken.userId, type: 'PASSWORD_RESET' } });
+    await this.prisma.verificationToken.deleteMany({
+      where: { userId: verificationToken.userId, type: 'PASSWORD_RESET' },
+    });
     return { success: true, message: 'Password reset successfully' };
   }
 
-  private async issueTokens(user: { id: string; email: string; firstName: string; lastName: string; role: string }) {
+  private async issueTokens(user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  }) {
     const payload = { sub: user.id, email: user.email, role: user.role };
 
     const accessToken = this.jwt.sign(payload, {
@@ -185,7 +212,7 @@ export class AuthService {
       select: { id: true },
     });
     if (tokens.length > MAX_SESSIONS) {
-      const toDelete = tokens.slice(0, tokens.length - MAX_SESSIONS).map(t => t.id);
+      const toDelete = tokens.slice(0, tokens.length - MAX_SESSIONS).map((t) => t.id);
       await this.prisma.refreshToken.deleteMany({ where: { id: { in: toDelete } } });
     }
 

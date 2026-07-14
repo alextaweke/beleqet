@@ -29,9 +29,9 @@ async function bootstrap() {
   // ── Validation ────────────────────────────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,          // strip unknown props
+      whitelist: true, // strip unknown props
       forbidNonWhitelisted: true,
-      transform: true,          // auto-transform to DTO types
+      transform: true, // auto-transform to DTO types
       transformOptions: { enableImplicitConversion: true },
     }),
   );

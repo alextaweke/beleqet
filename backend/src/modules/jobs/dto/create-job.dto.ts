@@ -1,5 +1,13 @@
-import { IsString, IsEnum, IsOptional, IsInt, IsBoolean, IsDateString, IsArray } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsString,
+  IsEnum,
+  IsOptional,
+  IsInt,
+  IsBoolean,
+  IsDateString,
+  IsArray,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // Local enum — mirrors Prisma JobType without requiring generated client
 export enum JobType {
@@ -17,19 +25,23 @@ export enum JobStatus {
 }
 
 export class CreateJobDto {
-  @ApiProperty() @IsString() title: string;
-  @ApiProperty() @IsString() description: string;
+  @ApiProperty() @IsString() title?: string;
+  @ApiProperty() @IsString() description?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() requirements?: string;
-  @ApiProperty() @IsString() location: string;
-  @ApiProperty({ enum: JobType }) @IsEnum(JobType) type: JobType;
-  @ApiProperty() @IsString() categoryId: string;
+  @ApiProperty() @IsString() location?: string;
+  @ApiProperty({ enum: JobType }) @IsEnum(JobType) type?: JobType;
+  @ApiProperty() @IsString() categoryId?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() salaryMin?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() salaryMax?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsDateString() deadline?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() featured?: boolean;
 
   // New extended fields
-  @ApiProperty({ required: false, type: [String] }) @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() filled?: boolean;
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() urgent?: boolean;
   @ApiProperty({ required: false }) @IsOptional() @IsString() jobSite?: string;
@@ -46,7 +58,10 @@ export class CreateJobDto {
   @ApiProperty({ required: false }) @IsOptional() @IsString() contactPhone?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() companyName?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() companyLogo?: string;
-  @ApiProperty({ required: false, enum: JobStatus }) @IsOptional() @IsEnum(JobStatus) status?: JobStatus;
+  @ApiProperty({ required: false, enum: JobStatus })
+  @IsOptional()
+  @IsEnum(JobStatus)
+  status?: JobStatus;
   @ApiProperty({ required: false }) @IsOptional() @IsString() currency?: string;
 }
 

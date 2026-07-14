@@ -1,14 +1,61 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, MapPin, ShieldCheck, BellRing, Send } from "lucide-react";
-import { popularSearches } from "@/lib/mockData";
+import { jobsService } from "@/lib/jobs";
 
 export default function Hero() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
+  const [popularSearches, setPopularSearches] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch popular searches from real job data
+  useEffect(() => {
+    const fetchPopularSearches = async () => {
+      try {
+        const response = await jobsService.findAll({ limit: 20 });
+        // Extract unique job titles and categories as popular searches
+        const titles = response.items.map((job) =>
+          job.title.split(" ").slice(0, 2).join(" "),
+        );
+        const categories = response.items
+          .map((job) => job.category?.label)
+          .filter(Boolean);
+        const combined = [...titles, ...categories].filter(Boolean);
+        // Get top 6 most common terms
+        const frequency: Record<string, number> = {};
+        combined.forEach((term) => {
+          if (term) frequency[term] = (frequency[term] || 0) + 1;
+        });
+        const sorted = Object.entries(frequency)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 6)
+          .map(([term]) => term);
+        setPopularSearches(
+          sorted.length > 0
+            ? sorted
+            : ["Software Engineer", "Addis Ababa", "Marketing"],
+        );
+      } catch (error) {
+        console.error("Failed to fetch popular searches:", error);
+        // Fallback popular searches
+        setPopularSearches([
+          "Software Engineer",
+          "Addis Ababa",
+          "Marketing",
+          "Finance",
+          "Sales",
+          "Manager",
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPopularSearches();
+  }, []);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -25,11 +72,13 @@ export default function Hero() {
       <div className="container-page relative py-16 md:py-24 grid md:grid-cols-2 gap-10 items-center">
         <div>
           <h1 className="text-hero">
-            Find Your Next <span className="text-success">Opportunity</span> Faster.
+            Find Your Next <span className="text-success">Opportunity</span>{" "}
+            Faster.
           </h1>
           <p className="mt-5 text-white/70 max-w-md text-base leading-relaxed">
-            Discover thousands of verified job opportunities across Ethiopia. Search, apply, and get hired faster with
-            the Beleqet Vacancy Platform.
+            Discover thousands of verified job opportunities across Ethiopia.
+            Search, apply, and get hired faster with the Beleqet Vacancy
+            Platform.
           </p>
 
           <form
@@ -65,15 +114,22 @@ export default function Hero() {
 
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-white/60">
             <span>Popular Searches:</span>
-            {popularSearches.map((term) => (
-              <button
-                key={term}
-                onClick={() => router.push(`/jobs?q=${encodeURIComponent(term)}`)}
-                className="rounded-full border border-white/15 px-3 py-1 hover:bg-white/10 transition-colors"
-              >
-                {term}
-              </button>
-            ))}
+            {loading ? (
+              <span className="text-white/40">Loading...</span>
+            ) : (
+              popularSearches.map((term) => (
+                <button
+                  key={term}
+                  onClick={() => {
+                    setQuery(term);
+                    router.push(`/jobs?q=${encodeURIComponent(term)}`);
+                  }}
+                  className="rounded-full border border-white/15 px-3 py-1 hover:bg-white/10 transition-colors"
+                >
+                  {term}
+                </button>
+              ))
+            )}
           </div>
 
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">

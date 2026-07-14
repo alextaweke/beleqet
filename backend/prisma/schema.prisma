@@ -13,7 +13,7 @@ model User {
   passwordHash          String
   firstName             String
   lastName              String
-  role                  UserRole            @default(JOB_SEEKER)
+  roles                 UserRole[]          @default([JOB_SEEKER])
   avatarUrl             String?
   phone                 String?
   telegramId            String?             @unique
@@ -43,6 +43,7 @@ model User {
   refreshTokens         RefreshToken[]
   verificationTokens    VerificationToken[]
 
+  @@index([roles])
   @@map("users")
 }
 

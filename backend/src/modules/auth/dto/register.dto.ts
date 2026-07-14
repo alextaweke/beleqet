@@ -3,8 +3,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 // Local enum — avoids dependency on generated Prisma client at compile time.
 export enum UserRole {
-  ADMIN      = 'ADMIN',
-  EMPLOYER   = 'EMPLOYER',
+  ADMIN = 'ADMIN',
+  EMPLOYER = 'EMPLOYER',
   JOB_SEEKER = 'JOB_SEEKER',
   FREELANCER = 'FREELANCER',
 }
@@ -12,20 +12,20 @@ export enum UserRole {
 export class RegisterDto {
   @ApiProperty({ example: 'henok@beleqet.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
-  @ApiProperty({ example: 'Henok' })
+  @ApiProperty({ example: 'Alex' })
   @IsString()
-  firstName: string;
+  firstName!: string;
 
-  @ApiProperty({ example: 'Mekonnen' })
+  @ApiProperty({ example: 'Taweke' })
   @IsString()
-  lastName: string;
+  lastName!: string;
 
-  @ApiProperty({ example: 'SecurePass123!' })
+  @ApiProperty({ example: 'Aduroambo@4754!' })
   @IsString()
   @MinLength(8)
-  password: string;
+  password!: string;
 
   @ApiProperty({ enum: UserRole, default: UserRole.JOB_SEEKER })
   @IsOptional()
@@ -36,38 +36,38 @@ export class RegisterDto {
 export class LoginDto {
   @ApiProperty({ example: 'henok@beleqet.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'SecurePass123!' })
   @IsString()
-  password: string;
+  password!: string;
 }
 
 export class RefreshDto {
   @ApiProperty()
   @IsString()
-  refreshToken: string;
+  refreshToken!: string;
 }
 
 export class VerifyEmailDto {
   @ApiProperty()
   @IsString()
-  token: string;
+  token!: string;
 }
 
 export class ForgotPasswordDto {
   @ApiProperty({ example: 'henok@beleqet.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 }
 
 export class ResetPasswordDto {
   @ApiProperty()
   @IsString()
-  token: string;
+  token!: string;
 
   @ApiProperty({ example: 'NewSecurePass123!' })
   @IsString()
   @MinLength(8)
-  newPassword: string;
+  newPassword!: string;
 }
