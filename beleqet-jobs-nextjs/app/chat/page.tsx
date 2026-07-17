@@ -170,8 +170,8 @@ export default function ChatListPage() {
             {filteredRooms.map((room) => {
               const otherUser = room.otherParticipant;
               const lastMessage = room.lastMessage;
-              const jobTitle =
-                room.contract?.freelanceJob?.title || "Unknown Job";
+              // const jobTitle =
+              //   room.contract?.freelanceJob?.title || "Unknown Job";
 
               return (
                 <Link
@@ -204,7 +204,7 @@ export default function ChatListPage() {
                         )}
                       </div>
                       <p className="text-sm text-gray-500 truncate">
-                        {jobTitle}
+                        {/* {jobTitle} */}
                       </p>
                       {lastMessage && (
                         <p className="text-sm text-gray-600 truncate">

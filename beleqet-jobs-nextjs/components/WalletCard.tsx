@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { freelanceService } from "@/lib/freelance";
-import type { WalletData } from "@/lib/freelance";
+import type { WalletData } from "@/types/freelance";
 import { formatDistanceToNow, format } from "date-fns";
 
 interface WalletCardProps {

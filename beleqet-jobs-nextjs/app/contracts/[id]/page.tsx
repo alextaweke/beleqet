@@ -27,10 +27,12 @@ import {
   X,
   Upload,
   Paperclip,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { apiFetch } from "@/lib/config";
 import { formatDistanceToNow, format } from "date-fns";
+import { EscrowStatus } from "@/components/EscrowStatus";
 
 interface Contract {
   id: string;
@@ -44,6 +46,14 @@ interface Contract {
   completedAt: string | null;
   updatedAt: string;
   chatRoomId?: string;
+  escrowTx?: {
+    id: string;
+    status: string;
+    grossAmount: number;
+    platformFee: number;
+    netAmount: number;
+    fundedAt: string | null;
+  } | null; // ✅ Allow null
   freelanceJob: {
     id: string;
     title: string;
@@ -69,6 +79,15 @@ interface Contract {
       label: string;
       icon: string;
     };
+    escrowTx?: {
+      // ✅ Add escrowTx to freelanceJob
+      id: string;
+      status: string;
+      grossAmount: number;
+      platformFee: number;
+      netAmount: number;
+      fundedAt: string | null;
+    } | null;
   };
   client: {
     id: string;
@@ -200,6 +219,10 @@ export default function ContractDetailPage() {
   const isActive = contract?.status === "ACTIVE";
   const canAddMilestone = isClient && isActive;
   const canSubmitDeliverable = isFreelancer && isActive;
+
+  // Check if client can fund escrow
+  const canFundEscrow =
+    isClient && contract?.status === "ACTIVE" && !contract?.escrowTx;
 
   // ============================================
   // Milestone Creation Functions
@@ -370,10 +393,20 @@ export default function ContractDetailPage() {
       return;
     }
 
+    // Log the full request details
+    console.log("🔍 Submitting deliverable with:");
+    console.log("  - Milestone ID:", selectedMilestoneId);
+    console.log("  - File URL:", deliverableForm.fileUrl);
+    console.log("  - Notes:", deliverableForm.notes);
+
+    // Validate UUID format
     const uuidRegex =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(selectedMilestoneId)) {
-      setDeliverableError("Invalid milestone ID format");
+      console.error("❌ Invalid UUID format:", selectedMilestoneId);
+      setDeliverableError(
+        "Invalid milestone ID format. Please refresh the page and try again.",
+      );
       return;
     }
 
@@ -387,40 +420,57 @@ export default function ContractDetailPage() {
         return;
       }
 
-      await apiFetch(
+      const requestBody = {
+        fileUrl: deliverableForm.fileUrl.trim(),
+        notes: deliverableForm.notes?.trim() || "",
+      };
+
+      console.log("📤 Sending request:", {
+        url: `/freelance/milestones/${selectedMilestoneId}/deliverables`,
+        method: "POST",
+        body: requestBody,
+      });
+
+      const response = await apiFetch(
         `/freelance/milestones/${selectedMilestoneId}/deliverables`,
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            fileUrl: deliverableForm.fileUrl,
-            notes: deliverableForm.notes || "",
-          }),
+          body: JSON.stringify(requestBody),
         },
       );
+
+      console.log("✅ Deliverable submitted:", response);
 
       setDeliverableSuccess(true);
 
       setTimeout(async () => {
-        const updatedContract = await apiFetch(
-          `/freelance/contracts/${params.id}`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
+        try {
+          const updatedContract = await apiFetch(
+            `/freelance/contracts/${params.id}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
             },
-          },
-        );
-        setContract(updatedContract);
+          );
+          setContract(updatedContract);
+        } catch (err) {
+          console.error("Error refreshing contract:", err);
+        }
+
         setDeliverableForm({ fileUrl: "", notes: "" });
         setShowDeliverableModal(false);
         setSelectedMilestoneId(null);
         setDeliverableSuccess(false);
       }, 1500);
     } catch (err: any) {
-      console.error("Error submitting deliverable:", err);
+      console.error("❌ Error submitting deliverable:", err);
+      console.error("Error details:", err.message);
       setDeliverableError(err.message || "Failed to submit deliverable");
     } finally {
       setSubmittingDeliverable(false);
@@ -883,6 +933,18 @@ export default function ContractDetailPage() {
                       Open Chat
                     </Link>
                   )}
+
+                {/* ✅ NEW: Fund Escrow Button */}
+                {canFundEscrow && (
+                  <Link
+                    href={`/freelance/pay?gig=${contract.freelanceJobId}`}
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-green-50 transition-colors text-sm text-green-700 w-full text-left"
+                  >
+                    <Shield className="h-4 w-4" />
+                    Fund Escrow
+                  </Link>
+                )}
+
                 {canAddMilestone && (
                   <button
                     onClick={() => setShowCreateMilestone(true)}
@@ -932,6 +994,117 @@ export default function ContractDetailPage() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* Escrow Status */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Shield className="h-4 w-4 text-green-600" />
+                Escrow
+              </h3>
+
+              {/* Check both locations for escrow data */}
+              {contract.escrowTx || contract.freelanceJob?.escrowTx ? (
+                <div className="space-y-3">
+                  {/* Show escrow status */}
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">
+                        Total Amount
+                      </span>
+                      <span className="text-lg font-bold text-gray-900">
+                        {contract.currency}{" "}
+                        {(
+                          contract.escrowTx?.grossAmount ||
+                          contract.freelanceJob?.escrowTx?.grossAmount ||
+                          0
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 text-sm">
+                      <span className="text-gray-500">Platform Fee (10%)</span>
+                      <span className="text-gray-700">
+                        {contract.currency}{" "}
+                        {(
+                          contract.escrowTx?.platformFee ||
+                          contract.freelanceJob?.escrowTx?.platformFee ||
+                          0
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 text-sm border-t border-gray-200 pt-1">
+                      <span className="text-gray-600 font-medium">
+                        Freelancer Receives
+                      </span>
+                      <span className="text-green-600 font-medium">
+                        {contract.currency}{" "}
+                        {(
+                          contract.escrowTx?.netAmount ||
+                          contract.freelanceJob?.escrowTx?.netAmount ||
+                          0
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Status indicator */}
+                  {contract.escrowTx?.status === "FUNDED" ||
+                  contract.freelanceJob?.escrowTx?.status === "FUNDED" ? (
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <CheckCircle className="h-4 w-4" />
+                      <span>Funds secured. Work can begin!</span>
+                    </div>
+                  ) : contract.escrowTx?.status === "PENDING" ||
+                    contract.freelanceJob?.escrowTx?.status === "PENDING" ? (
+                    <div className="flex items-center gap-2 text-sm text-yellow-600">
+                      <Clock className="h-4 w-4" />
+                      <span>Awaiting payment confirmation</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-blue-600">
+                      <Shield className="h-4 w-4" />
+                      <span>
+                        Status:{" "}
+                        {contract.escrowTx?.status ||
+                          contract.freelanceJob?.escrowTx?.status}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Funded date */}
+                  {(contract.escrowTx?.fundedAt ||
+                    contract.freelanceJob?.escrowTx?.fundedAt) && (
+                    <p className="text-xs text-gray-400">
+                      Funded on{" "}
+                      {new Date(
+                        contract.escrowTx?.fundedAt ||
+                          contract.freelanceJob?.escrowTx?.fundedAt ||
+                          "",
+                      ).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-gray-50 rounded-xl p-4 text-center">
+                    <p className="text-sm text-gray-600">
+                      No escrow created yet
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Fund the escrow to start the project
+                    </p>
+                  </div>
+                  {isClient && contract.status === "ACTIVE" && (
+                    <Link
+                      href={`/freelance/pay?gig=${contract.freelanceJobId}`}
+                      className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                      Fund Escrow Now
+                    </Link>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Summary */}
@@ -1210,6 +1383,7 @@ export default function ContractDetailPage() {
                       onClick={() => {
                         setShowDeliverableModal(false);
                         setDeliverableError(null);
+                        setDeliverableSuccess(false);
                         setDeliverableForm({ fileUrl: "", notes: "" });
                         setSelectedMilestoneId(null);
                       }}

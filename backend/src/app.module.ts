@@ -20,6 +20,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
+import { PortfolioModule } from '@modules/portfolio/portfolio.module';
 
 @Module({
   imports: [
@@ -31,9 +32,9 @@ import { TelegramModule } from './modules/telegram/telegram.module';
 
     // ── Rate limiting ──────────────────────────────────────────────────────
     ThrottlerModule.forRoot([
-      { name: 'short',  ttl: 1_000,  limit: 10  },
-      { name: 'medium', ttl: 10_000, limit: 50  },
-      { name: 'long',   ttl: 60_000, limit: 200 },
+      { name: 'short', ttl: 1_000, limit: 10 },
+      { name: 'medium', ttl: 10_000, limit: 50 },
+      { name: 'long', ttl: 60_000, limit: 200 },
     ]),
 
     // ── Event bus (in-process events between modules) ──────────────────────
@@ -54,7 +55,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
           tls: config.get<boolean>('REDIS_TLS', false) ? {} : undefined,
         },
         defaultJobOptions: {
-          removeOnComplete: 100,  // keep last 100 completed jobs
+          removeOnComplete: 100, // keep last 100 completed jobs
           removeOnFail: 200,
           attempts: 3,
           backoff: { type: 'exponential', delay: 2_000 },
@@ -79,6 +80,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
     ChatModule,
     UploadsModule,
     TelegramModule,
+    PortfolioModule,
   ],
 })
 export class AppModule {}

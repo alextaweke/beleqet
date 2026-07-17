@@ -214,7 +214,7 @@ export default function UnifiedDashboard() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4 max-w-7xl">
         {/* Header */}
-        <div className="mb-8">
+        {/* <div className="mb-8">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold text-gray-900">
               Welcome back, {user?.firstName || "User"}! 👋
@@ -233,7 +233,7 @@ export default function UnifiedDashboard() {
             Apply to jobs, bid on freelance gigs, and track everything in one
             place
           </p>
-        </div>
+        </div> */}
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -294,13 +294,13 @@ export default function UnifiedDashboard() {
         {/* Quick Actions */}
         <div className="flex flex-wrap gap-3 mb-8">
           <Link
-            href="/jobs"
+            href="/vacancy"
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
           >
             <Search className="h-4 w-4" /> Find Jobs
           </Link>
           <Link
-            href="/freelance"
+            href="/vacancy"
             className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
           >
             <Star className="h-4 w-4" /> Find Gigs
@@ -372,7 +372,7 @@ export default function UnifiedDashboard() {
                       <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                       <p className="text-gray-600">No applications yet</p>
                       <Link
-                        href="/jobs"
+                        href="/vacancy"
                         className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-700 font-medium"
                       >
                         Start applying →
@@ -708,7 +708,7 @@ export default function UnifiedDashboard() {
                   </span>
                 </div>
                 <Link
-                  href="/profile"
+                  href="/users/profile"
                   className="mt-3 inline-block text-sm text-green-600 hover:text-green-700 font-medium"
                 >
                   Edit Profile →
@@ -823,7 +823,10 @@ export default function UnifiedDashboard() {
               <p className="text-sm text-green-700">
                 Complete your profile and add your skills to get better job and
                 gig recommendations.
-                <Link href="/profile" className="font-medium underline ml-1">
+                <Link
+                  href="/users/profile"
+                  className="font-medium underline ml-1"
+                >
                   Update now
                 </Link>
               </p>

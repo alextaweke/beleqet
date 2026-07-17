@@ -13,10 +13,8 @@ import {
   CreateBidDto,
   QueryFreelanceJobsDto,
   FreelanceJobStatus,
-  ExperienceLevel,
   PricingType,
   CreateMilestoneDto,
-  CreateDeliverableDto,
   CreateDisputeDto,
   FundEscrowDto,
   ReleaseEscrowDto,
@@ -24,9 +22,10 @@ import {
   BidStatus,
 } from './dto';
 import { CreateFrelanceCategoryDto } from './dto/create-category.dto';
-
+import { CreateDeliverableDto } from './dto/create-deliverable.dto';
 @Injectable()
 export class FreelanceService {
+  logger: any;
   constructor(private readonly prisma: PrismaService) {}
 
   // ============================================
@@ -444,6 +443,7 @@ export class FreelanceService {
         freelanceJob: {
           include: {
             category: true,
+            escrowTx: true, // ✅ Add this to include escrow data
           },
         },
         client: {
@@ -645,10 +645,13 @@ export class FreelanceService {
     });
   }
 
-  async submitDeliverable(freelancerId: string, dto: CreateDeliverableDto) {
+  // freelance/freelance.service.ts
+  // freelance/freelance.service.ts
+  async submitDeliverable(milestoneId: string, freelancerId: string, dto: CreateDeliverableDto) {
+    // Validate milestone
     const milestone = await this.prisma.milestone.findFirst({
       where: {
-        id: dto.milestoneId,
+        id: milestoneId,
         contract: {
           freelancerId,
         },
@@ -663,16 +666,22 @@ export class FreelanceService {
       throw new ConflictException('This milestone has already been approved');
     }
 
+    // Update milestone status
+    await this.prisma.milestone.update({
+      where: { id: milestoneId },
+      data: { status: 'SUBMITTED' },
+    });
+
+    // Create deliverable
     return this.prisma.deliverable.create({
       data: {
-        milestoneId: dto.milestoneId,
+        milestoneId: milestoneId,
         fileUrl: dto.fileUrl,
-        notes: dto.notes,
+        notes: dto.notes || null,
         submittedAt: new Date(),
       },
     });
   }
-
   // ============================================
   // Dispute Management
   // ============================================

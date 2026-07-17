@@ -1,22 +1,15 @@
 // freelance/dto/create-deliverable.dto.ts
-import { IsString, IsOptional, IsUUID, IsUrl } from 'class-validator';
+import { IsString, IsOptional, IsUrl, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateDeliverableDto {
-  @ApiProperty({ description: 'Deliverable title' })
-  @IsString()
-  title?: string;
-
-  @ApiProperty({ description: 'Deliverable description' })
-  @IsString()
-  description?: string;
-
-  @ApiProperty({ description: 'Deliverable URL', required: false })
+  @ApiProperty({ description: 'File URL', required: true })
   @IsUrl()
-  @IsOptional()
-  url?: string;
+  @IsNotEmpty()
+  fileUrl!: string;
 
-  @ApiProperty({ description: 'Milestone ID' })
-  @IsUUID()
-  milestoneId?: string;
+  @ApiProperty({ description: 'Additional notes', required: false })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }

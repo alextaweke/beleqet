@@ -50,7 +50,7 @@ function JobActions({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
   return (
     <div className="flex items-center gap-2">
       <Link
-        href={`/jobs/${jobId}/edit`}
+        href={`/vacancy/${jobId}/edit`}
         className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
       >
         <Pencil className="h-4 w-4" />
@@ -115,10 +115,10 @@ export default async function JobDetailPage({
       {/* Header with Back button */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <Link
-          href="/jobs"
+          href="/vacancy"
           className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-green-600 transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to all jobs
+          <ArrowLeft className="h-4 w-4" /> Back to all vacancy
         </Link>
 
         {/* Client-side Edit/Delete buttons */}

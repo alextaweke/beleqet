@@ -1,4 +1,3 @@
-// app/dashboard/employer/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -25,6 +24,17 @@ import {
   MessageCircle,
   Award,
   BarChart3,
+  ChevronRight,
+  Building2,
+  Search,
+  Filter,
+  MoreHorizontal,
+  Mail,
+  Phone,
+  Globe,
+  Linkedin,
+  Github,
+  ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { jobsService } from "@/lib/jobs";
@@ -36,22 +46,11 @@ import {
 } from "@/lib/applications";
 import type { MyJobsDashboardResponse } from "@/types/jobs";
 import type { ApplicationResponse } from "@/lib/applications";
-import type {
-  FreelanceJob,
-  Bid,
-  Contract,
-  Milestone,
-  Deliverable,
-  Dispute,
-  WalletData,
-  WalletTransaction,
-  CreateFreelanceJobDto,
-  CreateBidDto,
-  FreelanceCategory,
-} from "@/types/freelance";
-import { formatDistanceToNow } from "date-fns";
+import type { FreelanceJob, Bid } from "@/types/freelance";
+import { formatDistanceToNow, format } from "date-fns";
 import DeleteJobButton from "@/components/DeleteJobButton";
 import WalletCard from "@/components/WalletCard";
+
 export default function EmployerDashboard() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -148,20 +147,17 @@ export default function EmployerDashboard() {
         rejected,
       });
 
-      // 3. Get employer's freelance jobs (created by this employer)
+      // 3. Get employer's freelance jobs
       try {
-        // Fetch all freelance jobs and filter by clientId
         const allFreelanceJobs = await freelanceService.getJobs({ limit: 100 });
         const myFreelanceJobs = allFreelanceJobs.items.filter(
           (job) => job.client?.id === user?.id,
         );
         setFreelanceJobs(myFreelanceJobs);
 
-        // 4. Get bids for freelance jobs
         const allBids: Bid[] = [];
         for (const job of myFreelanceJobs) {
           try {
-            // Fetch job details with bids
             const jobDetail = await freelanceService.getJobById(job.id);
             if (jobDetail.bids) {
               allBids.push(...jobDetail.bids);
@@ -175,7 +171,6 @@ export default function EmployerDashboard() {
         }
         setFreelanceBids(allBids);
 
-        // Calculate freelance stats
         const openJobs = myFreelanceJobs.filter(
           (j) => j.status === "OPEN" || j.status === "FUNDED",
         );
@@ -195,7 +190,6 @@ export default function EmployerDashboard() {
         });
       } catch (err) {
         console.error("Error fetching freelance data:", err);
-        // Don't fail the whole dashboard if freelance fails
       }
     } catch (err: any) {
       console.error("Error fetching employer data:", err);
@@ -316,298 +310,179 @@ export default function EmployerDashboard() {
   const views = 245;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4 max-w-7xl">
-        {/* Welcome Section */}
-        <div className="flex flex-wrap items-start justify-between mb-8">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-gray-900">
-                Welcome back, {user?.firstName || "Employer"}! 👋
-              </h1>
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="p-2 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-              >
-                <RefreshCw
-                  className={`h-5 w-5 text-gray-500 ${refreshing ? "animate-spin" : ""}`}
-                />
-              </button>
-            </div>
-            <p className="text-gray-600 mt-1">
-              Manage your job postings, freelance gigs, and applications
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              {totalJobs} regular jobs • {freelanceStats.total} freelance gigs •{" "}
-              {totalApplications + freelanceStats.totalBids} total
-              applications/bids
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <Link
-              href="/post-job"
-              className={`inline-flex items-center gap-2 px-6 py-3 text-white rounded-xl font-medium transition-colors ${
-                canPostMore
-                  ? "bg-green-600 hover:bg-green-700"
-                  : "bg-gray-400 cursor-not-allowed"
-              }`}
-              onClick={(e) => {
-                if (!canPostMore) {
-                  e.preventDefault();
-                  alert(
-                    `You've reached the maximum of ${allowedLimit} active job postings. Please archive or fill some positions to post more.`,
-                  );
-                }
-              }}
-            >
-              <Plus className="h-5 w-5" />
-              Post a Job
-              {!canPostMore && (
-                <span className="text-xs ml-1">(Limit reached)</span>
-              )}
-            </Link>
-            <Link
-              href="/freelance/post"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
-            >
-              <Briefcase className="h-5 w-5" />
-              Post a Gig
-            </Link>
-          </div>
-        </div>
-
-        {/* Combined Stats Grid */}
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 max-w-7xl py-8">
+        {/* Stats Cards - Upwork Style */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-50 rounded-xl">
-                <Briefcase className="h-6 w-6 text-blue-600" />
-              </div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm text-gray-500">Total Posts</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
                   {totalJobs + freelanceStats.total}
                 </p>
-                <p className="text-sm text-gray-600">Total Posts</p>
+              </div>
+              <div className="p-2.5 bg-blue-50 rounded-lg">
+                <Briefcase className="h-5 w-5 text-blue-600" />
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-green-50 rounded-xl">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-              </div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm text-gray-500">Active</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">
                   {activeJobs + freelanceStats.open}
                 </p>
-                <p className="text-sm text-gray-600">Active</p>
+              </div>
+              <div className="p-2.5 bg-green-50 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600" />
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-purple-50 rounded-xl">
-                <Users className="h-6 w-6 text-purple-600" />
-              </div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm text-gray-500">Applications / Bids</p>
+                <p className="text-2xl font-bold text-purple-600 mt-1">
                   {totalApplications + freelanceStats.totalBids}
                 </p>
-                <p className="text-sm text-gray-600">Applications / Bids</p>
+              </div>
+              <div className="p-2.5 bg-purple-50 rounded-lg">
+                <Users className="h-5 w-5 text-purple-600" />
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-yellow-50 rounded-xl">
-                <Eye className="h-6 w-6 text-yellow-600" />
-              </div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{views}</p>
-                <p className="text-sm text-gray-600">Total Views</p>
+                <p className="text-sm text-gray-500">Total Views</p>
+                <p className="text-2xl font-bold text-yellow-600 mt-1">
+                  {views}
+                </p>
+              </div>
+              <div className="p-2.5 bg-yellow-50 rounded-lg">
+                <Eye className="h-5 w-5 text-yellow-600" />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Application Stats for Regular Jobs */}
-        {applicationStats.total > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 text-center">
-              <p className="text-xl font-bold text-gray-900">
-                {applicationStats.total}
-              </p>
-              <p className="text-xs text-gray-500">Total Apps</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 text-center">
-              <p className="text-xl font-bold text-blue-600">
-                {applicationStats.submitted}
-              </p>
-              <p className="text-xs text-gray-500">Submitted</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 text-center">
-              <p className="text-xl font-bold text-purple-600">
-                {applicationStats.screening}
-              </p>
-              <p className="text-xs text-gray-500">Screening</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 text-center">
-              <p className="text-xl font-bold text-yellow-600">
-                {applicationStats.shortlisted}
-              </p>
-              <p className="text-xs text-gray-500">Shortlisted</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 text-center">
-              <p className="text-xl font-bold text-green-600">
-                {applicationStats.offered}
-              </p>
-              <p className="text-xs text-gray-500">Offers</p>
-            </div>
-          </div>
-        )}
-
-        {/* Freelance Stats */}
-        {freelanceStats.total > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 text-center">
-              <p className="text-xl font-bold text-blue-600">
-                {freelanceStats.open}
-              </p>
-              <p className="text-xs text-gray-500">Open Gigs</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 text-center">
-              <p className="text-xl font-bold text-purple-600">
-                {freelanceStats.inProgress}
-              </p>
-              <p className="text-xs text-gray-500">In Progress</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 text-center">
-              <p className="text-xl font-bold text-green-600">
-                {freelanceStats.completed}
-              </p>
-              <p className="text-xs text-gray-500">Completed</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 text-center">
-              <p className="text-xl font-bold text-yellow-600">
-                {freelanceStats.totalBids}
-              </p>
-              <p className="text-xs text-gray-500">Total Bids</p>
-            </div>
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 mb-6">
-          <button
-            onClick={() => setActiveTab("jobs")}
-            className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
-              activeTab === "jobs"
-                ? "border-green-600 text-green-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <Briefcase className="h-4 w-4 inline mr-2" />
-            Regular Jobs ({totalJobs})
-          </button>
-          <button
-            onClick={() => setActiveTab("freelance")}
-            className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
-              activeTab === "freelance"
-                ? "border-green-600 text-green-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <Star className="h-4 w-4 inline mr-2" />
-            Freelance Gigs ({freelanceStats.total})
-          </button>
+        {/* Tab Navigation - Upwork Style */}
+        <div className="border-b border-gray-200 mb-6">
+          <nav className="flex gap-8">
+            <button
+              onClick={() => setActiveTab("jobs")}
+              className={`pb-3 text-sm font-medium transition-colors border-b-2 ${
+                activeTab === "jobs"
+                  ? "border-green-600 text-green-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Briefcase className="h-4 w-4 inline mr-2" />
+              Jobs ({totalJobs})
+            </button>
+            <button
+              onClick={() => setActiveTab("freelance")}
+              className={`pb-3 text-sm font-medium transition-colors border-b-2 ${
+                activeTab === "freelance"
+                  ? "border-green-600 text-green-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Star className="h-4 w-4 inline mr-2" />
+              Freelance Gigs ({freelanceStats.total})
+            </button>
+          </nav>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2">
             {activeTab === "jobs" ? (
-              // Regular Jobs Section
+              // ── REGULAR JOBS ──
               <>
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Your Job Postings ({jobs.length})
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="font-semibold text-gray-900">
+                      Your Job Postings
                     </h2>
                     <Link
                       href="/dashboard/employer/jobs"
                       className="text-sm text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
                     >
-                      View all <ArrowRight className="h-4 w-4" />
+                      View all <ChevronRight className="h-4 w-4" />
                     </Link>
                   </div>
-                  <div className="space-y-3">
+                  <div className="divide-y divide-gray-100">
                     {jobs.slice(0, 5).map((job) => (
                       <div
                         key={job.id}
-                        className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-green-200 transition-colors"
+                        className="p-4 hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900">
-                            {job.title}
-                          </h3>
-                          <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />{" "}
-                              {job.location || "N/A"}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />{" "}
-                              {job.createdAt
-                                ? formatDistanceToNow(new Date(job.createdAt), {
-                                    addSuffix: true,
-                                  })
-                                : "Recently"}
-                            </span>
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                job.status === "PUBLISHED" &&
-                                job.filled !== true
-                                  ? "bg-green-100 text-green-700"
-                                  : job.filled === true
-                                    ? "bg-gray-100 text-gray-700"
-                                    : "bg-yellow-100 text-yellow-700"
-                              }`}
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <Link
+                              href={`/jobs/${job.id}`}
+                              className="font-medium text-gray-900 hover:text-green-600 transition-colors"
                             >
-                              {job.filled
-                                ? "Filled"
-                                : job.status === "PUBLISHED"
-                                  ? "Active"
-                                  : "Draft"}
-                            </span>
+                              {job.title}
+                            </Link>
+                            <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {job.location || "Remote"}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatDistanceToNow(new Date(job.createdAt), {
+                                  addSuffix: true,
+                                })}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  job.status === "PUBLISHED" && !job.filled
+                                    ? "bg-green-100 text-green-700"
+                                    : job.filled
+                                      ? "bg-gray-100 text-gray-700"
+                                      : "bg-yellow-100 text-yellow-700"
+                                }`}
+                              >
+                                {job.filled
+                                  ? "Filled"
+                                  : job.status === "PUBLISHED"
+                                    ? "Active"
+                                    : "Draft"}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3 ml-4">
-                          <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                            {job._count?.applications || 0} apps
-                          </span>
-                          <Link
-                            href={`/jobs/${job.id}`}
-                            className="text-sm text-blue-600 hover:text-blue-800"
-                          >
-                            View
-                          </Link>
-                          <Link
-                            href={`/jobs/${job.id}/edit`}
-                            className="text-sm text-green-600 hover:text-green-800"
-                          >
-                            Edit
-                          </Link>
-                          <DeleteJobButton
-                            jobId={job.id}
-                            jobTitle={job.title}
-                            variant="text"
-                          />
+                          <div className="flex items-center gap-3 ml-4">
+                            <span className="text-sm font-medium text-gray-700">
+                              {job._count?.applications || 0} apps
+                            </span>
+                            <Link
+                              href={`/jobs/${job.id}`}
+                              className="text-sm text-blue-600 hover:text-blue-800"
+                            >
+                              View
+                            </Link>
+                            <Link
+                              href={`/jobs/${job.id}/edit`}
+                              className="text-sm text-green-600 hover:text-green-800"
+                            >
+                              Edit
+                            </Link>
+                            <DeleteJobButton
+                              jobId={job.id}
+                              jobTitle={job.title}
+                              variant="text"
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}
                     {jobs.length === 0 && (
-                      <div className="text-center py-8">
+                      <div className="p-8 text-center">
                         <Briefcase className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                         <p className="text-gray-600">No jobs posted yet</p>
                         <Link
@@ -621,67 +496,62 @@ export default function EmployerDashboard() {
                   </div>
                 </div>
 
-                {/* Recent Applications for Regular Jobs */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-gray-500" />
+                {/* Recent Applications */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
+                  <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <Users className="h-4 w-4 text-gray-400" />
                       Recent Applications
                     </h2>
                     <Link
                       href="/dashboard/employer/applications"
                       className="text-sm text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
                     >
-                      View all <ArrowRight className="h-4 w-4" />
+                      View all <ChevronRight className="h-4 w-4" />
                     </Link>
                   </div>
-
-                  {recentApplications.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-600">No applications yet</p>
-                      <p className="text-sm text-gray-500">
-                        Applications will appear here when candidates apply to
-                        your jobs.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {recentApplications.map((app) => {
+                  <div className="divide-y divide-gray-100">
+                    {recentApplications.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-600">No applications yet</p>
+                      </div>
+                    ) : (
+                      recentApplications.map((app) => {
                         const status = getStatusBadge(app.status);
                         return (
                           <div
                             key={app.id}
-                            className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                            className="p-4 hover:bg-gray-50 transition-colors"
                           >
-                            <div className="flex-1 min-w-0">
-                              <Link
-                                href={`/dashboard/employer/applications/${app.id}`}
-                                className="font-medium text-gray-900 hover:text-green-600 transition-colors"
-                              >
-                                {app.user?.firstName || "Candidate"}{" "}
-                                {app.user?.lastName || ""}
-                              </Link>
-                              <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-gray-500">
-                                <span className="flex items-center gap-1">
-                                  <Briefcase className="h-3 w-3" />
-                                  {app.job?.title || "N/A"}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {formatDistanceToNow(
-                                    new Date(app.createdAt),
-                                    { addSuffix: true },
-                                  )}
-                                </span>
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <Link
+                                  href={`/dashboard/employer/applications/${app.id}`}
+                                  className="font-medium text-gray-900 hover:text-green-600 transition-colors"
+                                >
+                                  {app.user?.firstName || "Candidate"}{" "}
+                                  {app.user?.lastName || ""}
+                                </Link>
+                                <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-gray-500">
+                                  <span className="flex items-center gap-1">
+                                    <Briefcase className="h-3 w-3" />
+                                    {app.job?.title || "N/A"}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {formatDistanceToNow(
+                                      new Date(app.createdAt),
+                                      { addSuffix: true },
+                                    )}
+                                  </span>
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.className}`}
+                                  >
+                                    {status.label}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                            <div className="flex items-center gap-3 ml-4">
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${status.className}`}
-                              >
-                                {status.label}
-                              </span>
                               <Link
                                 href={`/dashboard/employer/applications/${app.id}`}
                                 className="text-sm text-blue-600 hover:text-blue-800"
@@ -691,84 +561,90 @@ export default function EmployerDashboard() {
                             </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  )}
+                      })
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
-              // Freelance Jobs Section
+              // ── FREELANCE GIGS ──
               <>
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Your Freelance Gigs ({freelanceJobs.length})
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="font-semibold text-gray-900">
+                      Your Freelance Gigs
                     </h2>
                     <Link
                       href="/freelance"
                       className="text-sm text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
                     >
-                      View all <ArrowRight className="h-4 w-4" />
+                      View all <ChevronRight className="h-4 w-4" />
                     </Link>
                   </div>
-                  <div className="space-y-3">
+                  <div className="divide-y divide-gray-100">
                     {freelanceJobs.slice(0, 5).map((job) => {
                       const status = getFreelanceStatusBadge(job.status);
                       return (
                         <div
                           key={job.id}
-                          className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-green-200 transition-colors"
+                          className="p-4 hover:bg-gray-50 transition-colors"
                         >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-gray-900">
-                                {job.title}
-                              </h3>
-                              {job.featured && (
-                                <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full">
-                                  ⭐ Featured
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <Link
+                                  href={`/freelance/${job.id}`}
+                                  className="font-medium text-gray-900 hover:text-green-600 transition-colors"
+                                >
+                                  {job.title}
+                                </Link>
+                                {job.featured && (
+                                  <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] rounded-full">
+                                    ⭐
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
+                                <span className="flex items-center gap-1">
+                                  <DollarSign className="h-3 w-3" />
+                                  {job.currency} {job.budgetMin} -{" "}
+                                  {job.budgetMax}
                                 </span>
-                              )}
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {job.deadlineDays} days
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  {job._count.bids} bids
+                                </span>
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.className}`}
+                                >
+                                  {status.label}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
-                              <span className="flex items-center gap-1">
-                                <DollarSign className="h-3 w-3" />
-                                {job.currency} {job.budgetMin} - {job.budgetMax}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {job.deadlineDays} days
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                {job._count.bids} bids
-                              </span>
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.className}`}
+                            <div className="flex items-center gap-3 ml-4">
+                              <Link
+                                href={`/freelance/${job.id}`}
+                                className="text-sm text-blue-600 hover:text-blue-800"
                               >
-                                {status.label}
-                              </span>
+                                View
+                              </Link>
+                              <Link
+                                href={`/freelance/${job.id}/edit`}
+                                className="text-sm text-green-600 hover:text-green-800"
+                              >
+                                Edit
+                              </Link>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-3 ml-4">
-                            <Link
-                              href={`/freelance/${job.id}`}
-                              className="text-sm text-blue-600 hover:text-blue-800"
-                            >
-                              View
-                            </Link>
-                            <Link
-                              href={`/freelance/${job.id}/edit`}
-                              className="text-sm text-green-600 hover:text-green-800"
-                            >
-                              Edit
-                            </Link>
                           </div>
                         </div>
                       );
                     })}
                     {freelanceJobs.length === 0 && (
-                      <div className="text-center py-8">
+                      <div className="p-8 text-center">
                         <Star className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                         <p className="text-gray-600">
                           No freelance gigs posted yet
@@ -784,80 +660,63 @@ export default function EmployerDashboard() {
                   </div>
                 </div>
 
-                {/* Bids on Freelance Gigs */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-gray-500" />
-                      Recent Bids on Gigs
+                {/* Recent Bids */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
+                  <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-gray-400" />
+                      Recent Bids
                     </h2>
                     <Link
                       href="/freelance/bids"
                       className="text-sm text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
                     >
-                      View all <ArrowRight className="h-4 w-4" />
+                      View all <ChevronRight className="h-4 w-4" />
                     </Link>
                   </div>
-
-                  {freelanceBids.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-600">No bids yet</p>
-                      <p className="text-sm text-gray-500">
-                        Bids will appear here when freelancers apply to your
-                        gigs.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {freelanceBids.slice(0, 5).map((bid) => {
+                  <div className="divide-y divide-gray-100">
+                    {freelanceBids.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-600">No bids yet</p>
+                      </div>
+                    ) : (
+                      freelanceBids.slice(0, 5).map((bid) => {
                         const status = getBidStatusBadge(bid.status);
                         return (
                           <div
                             key={bid.id}
-                            className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                            className="p-4 hover:bg-gray-50 transition-colors"
                           >
-                            <div className="flex-1 min-w-0">
-                              <Link
-                                href={`/freelance/${bid.freelanceJob}`}
-                                className="font-medium text-gray-900 hover:text-green-600 transition-colors"
-                              >
-                                {bid.freelancer?.firstName || "Freelancer"}{" "}
-                                {bid.freelancer?.lastName || ""}
-                              </Link>
-                              <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-gray-500">
-                                <span className="flex items-center gap-1">
-                                  <Briefcase className="h-3 w-3" />
-                                  {bid.freelanceJob?.title || "N/A"}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <DollarSign className="h-3 w-3" />$
-                                  {bid.amount}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {bid.timelineDays} days
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {formatDistanceToNow(
-                                    new Date(bid.createdAt),
-                                    { addSuffix: true },
-                                  )}
-                                </span>
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <Link
+                                  href={`/freelance/${bid.freelanceJob}`}
+                                  className="font-medium text-gray-900 hover:text-green-600 transition-colors"
+                                >
+                                  {bid.freelancer?.firstName || "Freelancer"}{" "}
+                                  {bid.freelancer?.lastName || ""}
+                                </Link>
+                                <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-gray-500">
+                                  <span className="flex items-center gap-1">
+                                    <Briefcase className="h-3 w-3" />
+                                    {bid.freelanceJob?.title || "N/A"}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <DollarSign className="h-3 w-3" />$
+                                    {bid.amount}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {bid.timelineDays} days
+                                  </span>
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.className}`}
+                                  >
+                                    {status.label}
+                                  </span>
+                                </div>
                               </div>
-                              {bid.coverLetter && (
-                                <p className="text-xs text-gray-600 mt-1 line-clamp-1">
-                                  {bid.coverLetter}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 ml-4">
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${status.className}`}
-                              >
-                                {status.label}
-                              </span>
                               <Link
                                 href={`/freelance/${bid.freelanceJob}`}
                                 className="text-sm text-blue-600 hover:text-blue-800"
@@ -867,50 +726,50 @@ export default function EmployerDashboard() {
                             </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  )}
+                      })
+                    )}
+                  </div>
                 </div>
               </>
             )}
           </div>
 
-          {/* Right Sidebar */}
+          {/* Right Sidebar - Upwork Style */}
           <div className="space-y-6">
             {/* Profile Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-              <div className="text-center">
-                <div className="w-20 h-20 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-3xl font-bold mx-auto">
-                  {user?.firstName?.charAt(0) || "E"}
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mt-3">
-                  {user?.firstName} {user?.lastName}
-                </h3>
-                <p className="text-sm text-gray-600">Employer</p>
-                <div className="mt-2 inline-block px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
-                  {activeJobs} / {allowedLimit} active jobs
-                </div>
-                <div className="mt-1 inline-block px-3 py-1 bg-blue-50 text-blue-600 text-xs rounded-full">
-                  {freelanceStats.open} open gigs
-                </div>
-                <Link
-                  href="/profile"
-                  className="mt-3 inline-block text-sm text-green-600 hover:text-green-700 font-medium"
-                >
-                  Edit Profile →
-                </Link>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-100 to-green-200 text-green-700 flex items-center justify-center text-3xl font-bold mx-auto">
+                {user?.firstName?.charAt(0) || "E"}
               </div>
+              <h3 className="text-lg font-semibold text-gray-900 mt-3">
+                {user?.firstName} {user?.lastName}
+              </h3>
+              <p className="text-sm text-gray-500">Employer</p>
+              <div className="mt-3 flex justify-center gap-2 flex-wrap">
+                <span className="px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
+                  {activeJobs} / {allowedLimit} active jobs
+                </span>
+                <span className="px-3 py-1 bg-blue-50 rounded-full text-xs text-blue-600">
+                  {freelanceStats.open} open gigs
+                </span>
+              </div>
+              <Link
+                href="/profile"
+                className="mt-3 inline-block text-sm text-green-600 hover:text-green-700 font-medium"
+              >
+                Edit Profile →
+              </Link>
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">
                 Quick Actions
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Link
                   href="/post-job"
-                  className={`flex items-center gap-2 p-2 rounded-lg transition-colors text-sm ${
+                  className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors text-sm ${
                     canPostMore
                       ? "text-gray-700 hover:bg-gray-50"
                       : "text-gray-400 cursor-not-allowed"
@@ -936,55 +795,56 @@ export default function EmployerDashboard() {
                 </Link>
                 <Link
                   href="/freelance/post"
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
                 >
                   <Star className="h-4 w-4 text-gray-400" />
                   Post a Gig
                 </Link>
                 <Link
                   href="/dashboard/employer/jobs"
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
                 >
                   <Briefcase className="h-4 w-4 text-gray-400" />
                   Manage Jobs
                 </Link>
                 <Link
                   href="/dashboard/employer/applications"
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
                 >
                   <Users className="h-4 w-4 text-gray-400" />
                   View Applications
                 </Link>
                 <Link
                   href="/freelance"
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
                 >
                   <Star className="h-4 w-4 text-gray-400" />
                   Browse Gigs
                 </Link>
                 <Link
                   href="/company/settings"
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
                 >
                   <Settings className="h-4 w-4 text-gray-400" />
                   Company Settings
                 </Link>
-                <WalletCard userId={user?.id} compact={true} />
               </div>
             </div>
 
-            {/* Tips */}
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6 border border-green-200">
-              <h3 className="text-sm font-semibold text-green-800 mb-2">
-                💡 Pro Tip
+            {/* Wallet Card */}
+            <WalletCard userId={user?.id} compact={true} />
+
+            {/* Posting Tips */}
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border border-blue-200">
+              <h3 className="text-sm font-semibold text-blue-800 mb-2">
+                💡 Tips for Success
               </h3>
-              <p className="text-sm text-green-700">
-                Jobs with featured status get 3x more applications. Freelance
-                gigs with clear requirements attract better freelancers.
-                <Link href="/pricing" className="font-medium underline ml-1">
-                  Learn more
-                </Link>
-              </p>
+              <ul className="text-xs text-blue-700 space-y-1.5">
+                <li>• Add clear job descriptions</li>
+                <li>• Set competitive budgets</li>
+                <li>• Respond to applicants quickly</li>
+                <li>• Highlight company benefits</li>
+              </ul>
             </div>
           </div>
         </div>

@@ -68,10 +68,16 @@ class ChatService {
   private joinCallbacks: Map<string, () => void> = new Map();
 
   connect(token: string): Socket {
+    // Clean the token
+    const cleanToken = token.replace("Bearer ", "").trim();
+    console.log(
+      "🔑 Connecting with token:",
+      cleanToken.substring(0, 20) + "...",
+    );
+
     // If socket exists and is connected, return it
     if (this.socket?.connected) {
       console.log("Socket already connected");
-      // If socket is connected but not authenticated, try to authenticate
       if (!this.isAuthenticated) {
         console.log(
           "Socket connected but not authenticated, waiting for auth...",
@@ -103,7 +109,7 @@ class ChatService {
     console.log("WebSocket URL:", wsUrl);
 
     this.socket = io(`${wsUrl}/chat`, {
-      auth: { token },
+      auth: { token: cleanToken }, // Use clean token
       transports: ["websocket", "polling"],
       withCredentials: true,
       reconnection: true,
@@ -167,10 +173,6 @@ class ChatService {
       this.reconnectAttempts = 0;
       this.isConnecting = false;
       this.emitEvent("connect", {});
-
-      // Re-authenticate on reconnect
-      this.isAuthenticated = false;
-      this.waitForAuthentication();
     });
 
     this.socket.on("disconnect", (reason) => {
@@ -229,6 +231,7 @@ class ChatService {
 
     this.socket.on("connected", (data) => {
       console.log("✅ Connected response:", data);
+      // IMPORTANT: Set authenticated to true immediately
       this.isAuthenticated = true;
       this.emitEvent("connected", data);
 
@@ -367,7 +370,7 @@ class ChatService {
     }
   }
 
-  /// API calls
+  // API calls
   async getRooms(): Promise<ChatRoom[]> {
     return apiFetch("/chat/rooms", {
       method: "GET",

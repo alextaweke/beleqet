@@ -13,7 +13,7 @@ model User {
   passwordHash          String
   firstName             String
   lastName              String
-  roles                 UserRole[]          @default([JOB_SEEKER])
+  role                  UserRole            @default(JOB_SEEKER)
   avatarUrl             String?
   phone                 String?
   telegramId            String?             @unique
@@ -29,6 +29,11 @@ model User {
   location              String?
   portfolioUrl          String?
   skills                String[]            @default([])
+  projects              Project[]
+  workHistory           WorkHistory[]
+  certifications        Certification[]
+  testimonialsReceived  Testimonial[]       @relation("TestimonialReceiver")
+  testimonialsGiven     Testimonial[]       @relation("TestimonialAuthor")
   applications          Application[]
   bids                  Bid[]
   candidateScores       CandidateScore[]
@@ -43,8 +48,85 @@ model User {
   refreshTokens         RefreshToken[]
   verificationTokens    VerificationToken[]
 
-  @@index([roles])
   @@map("users")
+}
+model Project {
+  id          String         @id @default(uuid())
+  title       String
+  description String
+  userId      String
+  category    String         // e.g., "Web Development", "Mobile App", "Design"
+  imageUrl    String?        // Main project image/thumbnail
+  demoUrl     String?        // Live demo URL
+  githubUrl   String?        // GitHub repository URL
+  videoUrl    String?        // YouTube/Vimeo video URL
+  technologies String[]      // Technologies used
+  featured    Boolean        @default(false)
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@map("projects")
+}
+model WorkHistory {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String   // Job title
+  company     String
+  companyUrl  String?
+  location    String?
+  startDate   DateTime
+  endDate     DateTime?
+  current     Boolean  @default(false)
+  description String?
+  achievements String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("work_histories")
+}
+model Testimonial {
+  id          String   @id @default(uuid())
+  userId      String   // The freelancer who received the testimonial
+  authorId    String   // The client who wrote the testimonial
+  authorName  String
+  authorRole  String?
+  authorCompany String?
+  authorAvatarUrl String?
+  content     String
+  rating      Int?     // 1-5 stars
+  projectId   String?  // Related project
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation("TestimonialReceiver", fields: [userId], references: [id], onDelete: Cascade)
+  author      User     @relation("TestimonialAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("testimonials")
+}
+model Certification {
+  id              String   @id @default(uuid())
+  userId          String
+  name            String   // e.g., "AWS Certified Developer"
+  issuingOrg      String   // e.g., "Amazon Web Services"
+  issueDate       DateTime
+  expiryDate      DateTime?
+  credentialId    String?
+  credentialUrl   String?
+  iconUrl         String?
+  isVerified      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("certifications")
 }
 
 model RefreshToken {

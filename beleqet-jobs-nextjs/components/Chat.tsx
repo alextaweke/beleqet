@@ -98,8 +98,12 @@ export default function Chat({ roomId, onBack }: ChatProps) {
           console.log("✅ Socket connected with ID:", socket.id);
           setIsConnected(true);
           setConnectionError(null);
+          // Try to join room immediately after connection
+          if (roomId && socket.connected) {
+            console.log("Attempting to join room on connect:", roomId);
+            chatService.joinRoom(roomId);
+          }
         };
-
         const handleNewMessage = (data: Message) => {
           console.log("📩 New message received:", data);
           if (data.roomId === roomId) {

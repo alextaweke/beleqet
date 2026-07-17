@@ -20,6 +20,8 @@ import {
   Tag,
   Pencil,
   Trash2,
+  Shield,
+  User,
 } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { apiFetch } from "@/lib/config";
@@ -53,9 +55,15 @@ interface FreelanceJob {
   contract?: {
     id: string;
     status: string;
+    agreedAmount?: number;
   };
   _count: {
     bids: number;
+  };
+  escrowTx?: {
+    id: string;
+    status: string;
+    grossAmount: number;
   };
 }
 
@@ -70,6 +78,11 @@ interface Bid {
     id: string;
     firstName: string;
     lastName: string;
+    email: string;
+    avatarUrl?: string;
+    headline?: string;
+    location?: string;
+    skills?: string[];
   };
 }
 
@@ -97,6 +110,15 @@ export default function FreelanceDetailPage() {
   const canBid = isFreelancer && job?.status === "OPEN";
   const canEditDelete = isClient && job?.status === "OPEN";
   const hasBid = job?.bids?.some((b) => b.freelancer?.id === user?.id);
+
+  // Check if escrow can be funded (client has accepted a bid and has contract)
+  const canFundEscrow =
+    isClient &&
+    job?.contract &&
+    job?.status !== "FUNDED" &&
+    (job?.status === "OPEN" || job?.status === "IN_PROGRESS") &&
+    !job?.escrowTx;
+  const hasActiveContract = job?.contract && job?.contract.status === "ACTIVE";
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -286,7 +308,7 @@ export default function FreelanceDetailPage() {
               {error || "Gig not found"}
             </p>
             <Link
-              href="/freelance"
+              href="/vacancy"
               className="mt-4 inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               Back to Gigs
@@ -302,7 +324,7 @@ export default function FreelanceDetailPage() {
       <div className="container mx-auto px-4 max-w-4xl">
         {/* Back Button */}
         <Link
-          href="/freelance"
+          href="/vacancy"
           className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-green-600 mb-6 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -342,9 +364,11 @@ export default function FreelanceDetailPage() {
                 className={`px-3 py-1 text-sm font-medium rounded-full ${
                   job.status === "OPEN"
                     ? "bg-green-100 text-green-700"
-                    : job.status === "IN_PROGRESS"
+                    : job.status === "FUNDED"
                       ? "bg-blue-100 text-blue-700"
-                      : "bg-gray-100 text-gray-700"
+                      : job.status === "IN_PROGRESS"
+                        ? "bg-purple-100 text-purple-700"
+                        : "bg-gray-100 text-gray-700"
                 }`}
               >
                 {job.status.replace("_", " ")}
@@ -394,8 +418,43 @@ export default function FreelanceDetailPage() {
                 <p className="text-sm text-gray-600">Bids</p>
                 <p className="font-medium text-gray-900">{job._count.bids}</p>
               </div>
+              {job.contract && (
+                <div>
+                  <p className="text-sm text-gray-600">Contract Amount</p>
+                  <p className="font-medium text-gray-900">
+                    ${job.contract.agreedAmount || job.budgetMax}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Escrow Status - Show if exists */}
+          {job.escrowTx && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-800">
+                    Escrow Status
+                  </p>
+                  <p className="text-sm text-blue-600">
+                    ${job.escrowTx.grossAmount} held in escrow
+                  </p>
+                </div>
+                <span
+                  className={`px-3 py-1 text-xs font-medium rounded-full ${
+                    job.escrowTx.status === "FUNDED"
+                      ? "bg-green-100 text-green-700"
+                      : job.escrowTx.status === "PENDING"
+                        ? "bg-yellow-100 text-yellow-700"
+                        : "bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  {job.escrowTx.status}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Description */}
           <div className="mb-6">
@@ -454,6 +513,7 @@ export default function FreelanceDetailPage() {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-200">
+            {/* View/Show Bids button */}
             {isClient && job.status === "OPEN" && (
               <button
                 onClick={() => setShowBidForm(!showBidForm)}
@@ -461,6 +521,25 @@ export default function FreelanceDetailPage() {
               >
                 {showBidForm ? "Hide Bids" : "View Bids"}
               </button>
+            )}
+
+            {/* ✅ NEW: Pay / Fund Escrow Button for Client */}
+            {canFundEscrow && (
+              <Link
+                href={`/freelance/pay?gig=${job.id}`}
+                className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
+              >
+                <Shield className="h-4 w-4" />
+                Fund Escrow
+              </Link>
+            )}
+
+            {/* Show payment status if escrow exists */}
+            {job.escrowTx && job.escrowTx.status === "FUNDED" && (
+              <div className="px-6 py-2.5 bg-green-100 text-green-700 rounded-xl font-medium flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" />
+                Escrow Funded ✓
+              </div>
             )}
 
             {canBid && !hasBid && (
@@ -622,16 +701,29 @@ export default function FreelanceDetailPage() {
                   className="border border-gray-100 rounded-xl p-4 hover:border-green-200 transition-colors"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-900">
-                          {bid.freelancer?.firstName} {bid.freelancer?.lastName}
-                        </p>
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                          {user?.role || "Freelancer"}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-gray-600">
+                    <div className="flex-1">
+                      {/* Freelancer Info - Clickable */}
+                      <Link
+                        href={`/users/profile/${bid.freelancer.id}`}
+                        className="flex items-center gap-2 hover:underline group"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-semibold">
+                          {bid.freelancer.firstName?.charAt(0) || "F"}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                            {bid.freelancer.firstName} {bid.freelancer.lastName}
+                          </p>
+                          {bid.freelancer.headline && (
+                            <p className="text-xs text-gray-500">
+                              {bid.freelancer.headline}
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+
+                      {/* Bid Details */}
+                      <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-600">
                         <span className="flex items-center gap-1">
                           <DollarSign className="h-3.5 w-3.5" />${bid.amount}
                         </span>
@@ -657,10 +749,45 @@ export default function FreelanceDetailPage() {
                           {bid.status}
                         </span>
                       </div>
+
+                      {/* Cover Letter */}
                       <p className="text-sm text-gray-600 mt-2">
                         {bid.coverLetter}
                       </p>
+
+                      {/* Freelancer Skills */}
+                      {bid.freelancer.skills &&
+                        bid.freelancer.skills.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {bid.freelancer.skills
+                              .slice(0, 3)
+                              .map((skill, index) => (
+                                <span
+                                  key={index}
+                                  className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+                                >
+                                  {skill}
+                                </span>
+                              ))}
+                            {bid.freelancer.skills.length > 3 && (
+                              <span className="text-xs text-gray-400">
+                                +{bid.freelancer.skills.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                      {/* View Profile Link */}
+                      <Link
+                        href={`/users/profile/${bid.freelancer.id}`}
+                        className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 font-medium mt-2 hover:underline"
+                      >
+                        <User className="h-3.5 w-3.5" />
+                        View Full Profile
+                      </Link>
                     </div>
+
+                    {/* Accept Button */}
                     {bid.status === "PENDING" && job.status === "OPEN" && (
                       <button
                         onClick={() => handleAcceptBid(bid.id)}
@@ -678,7 +805,7 @@ export default function FreelanceDetailPage() {
                           </>
                         ) : (
                           <>
-                            <CheckCircle className="h-4 w-4 inline mr-1" />
+                            <CheckCircle className="h-4 w-4" />
                             Accept Bid
                           </>
                         )}

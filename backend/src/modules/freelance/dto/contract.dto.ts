@@ -50,22 +50,6 @@ export class CreateMilestoneDto {
   contractId!: string;
 }
 
-export class CreateDeliverableDto {
-  @ApiProperty({ description: 'Deliverable file URL', required: false })
-  @IsUrl()
-  @IsOptional()
-  fileUrl?: string;
-
-  @ApiProperty({ description: 'Deliverable notes', required: false })
-  @IsString()
-  @IsOptional()
-  notes?: string;
-
-  @ApiProperty({ description: 'Milestone ID' })
-  @IsUUID()
-  milestoneId!: string;
-}
-
 export class CreateContractDto {
   @ApiProperty({ description: 'Freelance job ID' })
   @IsUUID()

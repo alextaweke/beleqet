@@ -13,6 +13,7 @@ import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config'; // Add this import
 
 @WebSocketGateway({
   cors: {
@@ -31,16 +32,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly configService: ConfigService, // Add this
   ) {}
 
   async handleConnection(client: Socket) {
     try {
-      // Log all connection details for debugging
       this.logger.log(`=== New Connection Attempt ===`);
       this.logger.log(`Client ID: ${client.id}`);
-      this.logger.log(`Auth token present: ${!!client.handshake.auth?.token}`);
-      this.logger.log(`Headers: ${JSON.stringify(client.handshake.headers)}`);
-      this.logger.log(`Query: ${JSON.stringify(client.handshake.query)}`);
 
       // Try multiple sources for token
       let tokenString = client.handshake.auth?.token;
@@ -63,37 +61,62 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Clean token
       const cleanToken = tokenString.replace('Bearer ', '').trim();
       this.logger.log(`Token length: ${cleanToken.length}`);
+      this.logger.log(`Token preview: ${cleanToken.substring(0, 20)}...`);
 
-      // Verify token
+      // Verify token with explicit secret
       try {
-        const payload = this.jwtService.verify(cleanToken);
-        this.logger.log(`✅ Token verified for user: ${payload.userId}`);
+        // Try to verify with the access secret
+        const secret = this.configService.get<string>('JWT_ACCESS_SECRET');
+        this.logger.log(`Using JWT secret: ${secret ? 'Secret found' : 'Secret not found'}`);
+
+        // Verify the token
+        const payload = this.jwtService.verify(cleanToken, {
+          secret: secret,
+        });
+
+        // DEBUG: Log the full payload
+        this.logger.log(`✅ Full JWT Payload: ${JSON.stringify(payload, null, 2)}`);
+        this.logger.log(`✅ Payload keys: ${Object.keys(payload).join(', ')}`);
+
+        // Try to find the user ID in any possible field
+        const userId = payload.sub || payload.userId || payload.id || payload.user_id;
+
+        this.logger.log(`✅ Extracted userId: ${userId}`);
+
+        if (!userId) {
+          this.logger.warn(`❌ No user ID found in token payload`);
+          client.emit('error', { message: 'Invalid token: missing user ID' });
+          client.disconnect();
+          return;
+        }
 
         // Check if user exists in database
         const user = await this.prisma.user.findUnique({
-          where: { id: payload.userId },
+          where: { id: userId },
         });
 
         if (!user) {
-          this.logger.warn(`❌ User not found: ${payload.userId}`);
+          this.logger.warn(`❌ User not found: ${userId}`);
           client.emit('error', { message: 'User not found' });
           client.disconnect();
           return;
         }
 
+        // Store user data
         client.data.user = payload;
-        client.data.userId = payload.userId;
+        client.data.userId = userId;
 
-        this.logger.log(`✅ Client connected: ${client.id} (User: ${payload.userId})`);
+        this.logger.log(`✅ Client connected: ${client.id} (User: ${userId})`);
 
         // Emit connected event after successful authentication
         client.emit('connected', {
-          userId: payload.userId,
+          userId: userId,
           authenticated: true,
           message: 'Successfully connected to chat server',
         });
       } catch (jwtError: any) {
         this.logger.error(`❌ JWT verification failed: ${jwtError.message}`);
+        this.logger.error(`JWT Error details:`, jwtError);
         client.emit('error', { message: 'Invalid token: ' + jwtError.message });
         client.disconnect();
         return;
@@ -112,12 +135,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('join_room')
   async handleJoinRoom(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
-    const userId = client.data.user?.userId;
+    const userId = client.data.userId;
     const roomId = data?.roomId;
 
     this.logger.log(`📤 join_room request: userId=${userId}, roomId=${roomId}`);
-    this.logger.log(`📤 Full data received: ${JSON.stringify(data)}`);
-    this.logger.log(`📤 Client data: ${JSON.stringify(client.data)}`);
 
     if (!userId) {
       this.logger.warn(`❌ No userId found in socket data`);
@@ -188,7 +209,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('send_message')
   async handleMessage(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
-    const userId = client.data.user?.userId;
+    const userId = client.data.userId;
     const roomId = data?.roomId;
     const content = data?.content;
 
@@ -218,7 +239,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('typing')
   async handleTyping(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
-    const userId = client.data.user?.userId;
+    const userId = client.data.userId;
     if (!userId || !data?.roomId) return;
 
     client.to(data.roomId).emit('user_typing', {
@@ -229,7 +250,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('mark_read')
   async handleMarkRead(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
-    const userId = client.data.user?.userId;
+    const userId = client.data.userId;
     if (!userId || !data?.roomId) return;
 
     try {

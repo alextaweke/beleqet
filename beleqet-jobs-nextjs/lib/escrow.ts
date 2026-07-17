@@ -68,29 +68,56 @@ export const ESCROW_STATUS_COLORS: Record<EscrowStatus, string> = {
 // ============================================
 
 class EscrowService {
-  private getAccessToken(): string | undefined {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("accessToken") || undefined;
-    }
-    return undefined;
-  }
-
   /**
    * Initiate escrow for a gig
    * POST /escrow/initiate/:gigId
    */
   async initiate(gigId: string): Promise<InitiateEscrowResponse> {
-    const token = this.getAccessToken();
-    if (!token) {
-      throw new Error("Authentication required to initiate escrow");
+    // Check if we're in the browser
+    if (typeof window === "undefined") {
+      throw new Error("Cannot initiate escrow on server side");
     }
 
-    return apiFetch(`/escrow/initiate/${gigId}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      throw new Error("Please log in to make a payment");
+    }
+
+    try {
+      // apiFetch will automatically add the Authorization header
+      const response = await apiFetch(`/escrow/initiate/${gigId}`, {
+        method: "POST",
+      });
+
+      // Validate response
+      if (!response.escrowId || !response.checkoutUrl) {
+        throw new Error("Invalid response from server");
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error("Escrow initiation error:", error);
+
+      // Better error messages
+      if (error.message?.includes("404")) {
+        throw new Error("Gig not found. Please check the gig ID.");
+      }
+      if (
+        error.message?.includes("403") ||
+        error.message?.includes("Forbidden")
+      ) {
+        throw new Error(
+          "You don't have permission to initiate payment for this gig.",
+        );
+      }
+      if (error.message?.includes("contract")) {
+        throw new Error(
+          "Please accept a bid first to create a contract before making a payment.",
+        );
+      }
+
+      throw error;
+    }
   }
 
   /**
@@ -100,17 +127,78 @@ class EscrowService {
   async releaseMilestone(
     milestoneId: string,
   ): Promise<ReleaseMilestoneResponse> {
-    const token = this.getAccessToken();
-    if (!token) {
-      throw new Error("Authentication required to release milestone");
+    if (typeof window === "undefined") {
+      throw new Error("Cannot release milestone on server side");
     }
 
-    return apiFetch(`/escrow/milestones/${milestoneId}/release`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      throw new Error("Please log in to release milestone");
+    }
+
+    try {
+      // apiFetch will automatically add the Authorization header
+      const response = await apiFetch(
+        `/escrow/milestones/${milestoneId}/release`,
+        {
+          method: "POST",
+        },
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error("Milestone release error:", error);
+
+      if (error.message?.includes("404")) {
+        throw new Error("Milestone not found");
+      }
+      if (error.message?.includes("403")) {
+        throw new Error("You don't have permission to release this milestone");
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Get escrow details by ID
+   * GET /escrow/:id
+   */
+  async getEscrowDetails(escrowId: string): Promise<EscrowTransaction> {
+    if (typeof window === "undefined") {
+      throw new Error("Cannot fetch escrow on server side");
+    }
+
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      throw new Error("Please log in to view escrow details");
+    }
+
+    try {
+      const response = await apiFetch(`/escrow/${escrowId}`, {
+        method: "GET",
+      });
+      return response;
+    } catch (error: any) {
+      console.error("Fetch escrow error:", error);
+      throw new Error(error.message || "Failed to fetch escrow details");
+    }
+  }
+  async getEscrowByGig(gigId: string): Promise<EscrowTransaction | null> {
+    if (typeof window === "undefined") return null;
+
+    const token = localStorage.getItem("accessToken");
+    if (!token) return null;
+
+    try {
+      const response = await apiFetch(`/escrow/gig/${gigId}`, {
+        method: "GET",
+      });
+      return response;
+    } catch (error) {
+      // No escrow found or error
+      return null;
+    }
   }
 }
 

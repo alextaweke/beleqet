@@ -1,4 +1,6 @@
-# Build stage
+# ===========================
+# Build Stage
+# ===========================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -15,18 +17,21 @@ COPY . .
 RUN npm run prisma:generate
 RUN npm run build
 
-# Production stage
+# ===========================
+# Production Stage
+# ===========================
 FROM node:20-alpine
 
 WORKDIR /app
 
 RUN apk add --no-cache openssl
 
-COPY --from=builder /app/package*.json ./
+COPY package*.json ./
+
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 4000
 
-CMD sh -c "npx prisma db push --accept-data-loss && npm run start:prod"
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:prod"]

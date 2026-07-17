@@ -6,3 +6,5 @@ export * from './query-freelance-jobs.dto';
 export * from './contract.dto';
 export * from './create-dispute.dto';
 export * from './escrow.dto';
+export * from './create-category.dto';
+// export * from './create-deliverable.dto';

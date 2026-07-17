@@ -25,14 +25,13 @@ import {
   FreelanceJobStatus,
   BidStatus,
   CreateMilestoneDto,
-  CreateDeliverableDto,
   CreateDisputeDto,
   FundEscrowDto,
   ReleaseEscrowDto,
 } from './dto';
 import { CreateFrelanceCategoryDto } from './dto/create-category.dto';
 import { RolesGuard } from '@common/guards/roles.guard';
-
+import { CreateDeliverableDto } from './dto/create-deliverable.dto';
 @ApiTags('freelance')
 @Controller('freelance')
 export class FreelanceController {
@@ -197,6 +196,8 @@ export class FreelanceController {
     return this.svc.approveMilestone(id, user.userId);
   }
 
+  // freelance/freelance.controller.ts
+
   @Post('milestones/:id/deliverables')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -209,9 +210,9 @@ export class FreelanceController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateDeliverableDto,
   ) {
-    return this.svc.submitDeliverable(user.userId, { ...dto, milestoneId: id });
+    // Pass all 3 arguments: milestoneId, freelancerId, dto
+    return this.svc.submitDeliverable(id, user.userId, dto);
   }
-
   // ============================================
   // Disputes
   // ============================================
