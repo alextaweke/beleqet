@@ -1,7 +1,6 @@
-// app/freelance/pay/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -17,7 +16,8 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { escrowService } from "@/lib/escrow";
 import { apiFetch } from "@/lib/config";
 
-export default function EscrowPaymentPage() {
+// ── Main Component ──────────────────────────────────────────────────────
+function EscrowPaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -95,7 +95,6 @@ export default function EscrowPaymentPage() {
 
       if (response.checkoutUrl) {
         console.log("Redirecting to:", response.checkoutUrl);
-        // ✅ Use window.location.assign for better handling
         window.location.assign(response.checkoutUrl);
       } else {
         setError("Payment gateway URL not available. Please try again.");
@@ -107,6 +106,7 @@ export default function EscrowPaymentPage() {
       setInitiating(false);
     }
   };
+
   // Loading state
   if (isLoading || loading) {
     return (
@@ -306,5 +306,23 @@ export default function EscrowPaymentPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Export with Suspense ───────────────────────────────────────────────
+export default function EscrowPaymentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-green-600 border-t-transparent"></div>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <EscrowPaymentContent />
+    </Suspense>
   );
 }
