@@ -29,6 +29,13 @@ import {
   AlertCircle,
   BarChart,
 } from "lucide-react";
+import {
+  notificationsService,
+  Notification,
+  NOTIFICATION_ICONS,
+  NOTIFICATION_COLORS,
+} from "@/lib/notifications";
+import { formatDistanceToNow } from "date-fns";
 
 // ── Public Navigation ──────────────────────────────────────────────────
 const publicNavItems = [
@@ -54,6 +61,7 @@ const roleNavItems = {
     { label: "Wallet", href: "/freelance/wallet" },
     { label: "Profile", href: "/users/profile" },
     { label: "Portfolio", href: "/portfolio" },
+    { label: "Analytics", href: "/dashboard/seeker/analytics" },
   ],
   EMPLOYER: [
     { label: "Dashboard", href: "/dashboard/employer" },
@@ -88,11 +96,59 @@ export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [hoveredDropdown, setHoveredDropdown] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
   const userRole = (user?.role as keyof typeof roleNavItems) || "JOB_SEEKER";
   const canPostJob = user?.role === "ADMIN" || user?.role === "EMPLOYER";
+
+  // ── Fetch Notifications ──────────────────────────────────────────────
+  const fetchNotifications = async () => {
+    try {
+      const data = await notificationsService.getNotifications({ limit: 10 });
+      setNotifications(data.items || []);
+      setUnreadCount(data.unreadCount || 0);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUnreadCount = async () => {
+    try {
+      const data = await notificationsService.getUnreadCount();
+      setUnreadCount(data.unreadCount || 0);
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+    }
+  };
+
+  // ── Mark as Read ──────────────────────────────────────────────────────
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await notificationsService.markAsRead(id);
+      setNotifications(
+        notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      );
+      setUnreadCount(Math.max(0, unreadCount - 1));
+    } catch (error) {
+      console.error("Error marking as read:", error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationsService.markAllAsRead();
+      setNotifications(notifications.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Error marking all as read:", error);
+    }
+  };
 
   // ── Close dropdowns on click outside ────────────────────────────────
   useEffect(() => {
@@ -113,6 +169,16 @@ export default function Header() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // ── Fetch notifications on auth change ─────────────────────────────
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchNotifications();
+      // Poll for new notifications every 30 seconds
+      const interval = setInterval(fetchUnreadCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated]);
 
   // ── Get dashboard URL ────────────────────────────────────────────────
   const getDashboardUrl = () => {
@@ -166,39 +232,26 @@ export default function Header() {
     return user.role.toLowerCase().replace("_", " ");
   };
 
-  // ── Notifications (Mock data) ──────────────────────────────────────
-  const notifications = [
-    {
-      id: 1,
-      title: "New application received",
-      time: "5 min ago",
-      read: false,
-      icon: Users,
-    },
-    {
-      id: 2,
-      title: "Your job post is live",
-      time: "1 hour ago",
-      read: false,
-      icon: CheckCircle,
-    },
-    {
-      id: 3,
-      title: "New message from client",
-      time: "2 hours ago",
-      read: true,
-      icon: MessageCircle,
-    },
-    {
-      id: 4,
-      title: "Contract milestone approved",
-      time: "1 day ago",
-      read: true,
-      icon: Award,
-    },
-  ];
+  // ── Get notification icon ────────────────────────────────────────────
+  const getNotificationIcon = (type: string) => {
+    return NOTIFICATION_ICONS[type] || "📢";
+  };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // ── Get notification color ───────────────────────────────────────────
+  const getNotificationColor = (type: string) => {
+    const colorMap: Record<string, string> = {
+      blue: "bg-blue-50 text-blue-600",
+      green: "bg-green-50 text-green-600",
+      purple: "bg-purple-50 text-purple-600",
+      orange: "bg-orange-50 text-orange-600",
+      red: "bg-red-50 text-red-600",
+      yellow: "bg-yellow-50 text-yellow-600",
+      indigo: "bg-indigo-50 text-indigo-600",
+      teal: "bg-teal-50 text-teal-600",
+      gray: "bg-gray-50 text-gray-600",
+    };
+    return colorMap[NOTIFICATION_COLORS[type] || "gray"] || colorMap.gray;
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
@@ -236,7 +289,7 @@ export default function Header() {
                 </Link>
                 {/* Dropdown for Jobs */}
                 {item.label === "Jobs" && hoveredDropdown === "Jobs" && (
-                  <div className="absolute top-full left-0  w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-1 z-50">
+                  <div className="absolute top-full left-0 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-1 z-50">
                     <Link
                       href="/vacancy"
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
@@ -244,13 +297,6 @@ export default function Header() {
                       <Briefcase className="h-4 w-4 text-gray-400" />
                       Browse Jobs
                     </Link>
-                    {/* <Link
-                      href="/jobs/saved"
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
-                    >
-                      <Star className="h-4 w-4 text-gray-400" />
-                      Saved Jobs
-                    </Link> */}
                     {canPostJob && (
                       <Link
                         href="/post-job"
@@ -390,60 +436,109 @@ export default function Header() {
                   <Bell className="h-5 w-5 text-gray-600" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                      {unreadCount}
+                      {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
                 </button>
 
                 {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl border border-gray-200 shadow-lg z-50">
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl border border-gray-200 shadow-lg z-50 max-h-[500px] flex flex-col">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                      <h3 className="font-semibold text-gray-900">
-                        Notifications
-                      </h3>
-                      <button className="text-xs text-green-600 hover:text-green-700">
-                        Mark all read
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <Bell className="h-4 w-4 text-gray-500" />
+                        <h3 className="font-semibold text-gray-900">
+                          Notifications
+                        </h3>
+                        {unreadCount > 0 && (
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                            {unreadCount} new
+                          </span>
+                        )}
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllAsRead}
+                          className="text-xs text-green-600 hover:text-green-700 font-medium"
+                        >
+                          Mark all read
+                        </button>
+                      )}
                     </div>
-                    <div className="max-h-80 overflow-y-auto">
-                      {notifications.map((notif) => {
-                        const Icon = notif.icon;
-                        return (
-                          <div
-                            key={notif.id}
-                            className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${
-                              !notif.read ? "bg-green-50" : ""
-                            }`}
-                          >
-                            <div
-                              className={`p-1.5 rounded-lg ${!notif.read ? "bg-green-100" : "bg-gray-100"}`}
-                            >
-                              <Icon
-                                className={`h-4 w-4 ${!notif.read ? "text-green-600" : "text-gray-400"}`}
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p
-                                className={`text-sm ${!notif.read ? "font-semibold text-gray-900" : "text-gray-700"}`}
-                              >
-                                {notif.title}
-                              </p>
-                              <p className="text-xs text-gray-400">
-                                {notif.time}
-                              </p>
-                            </div>
-                            {!notif.read && (
-                              <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5" />
-                            )}
+
+                    <div className="flex-1 overflow-y-auto">
+                      {loading ? (
+                        <div className="text-center py-8 text-gray-500 text-sm">
+                          Loading...
+                        </div>
+                      ) : notifications.length === 0 ? (
+                        <div className="text-center py-8">
+                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Bell className="h-6 w-6 text-gray-400" />
                           </div>
-                        );
-                      })}
+                          <p className="text-gray-500 text-sm">
+                            No notifications
+                          </p>
+                          <p className="text-gray-400 text-xs mt-1">
+                            You're all caught up!
+                          </p>
+                        </div>
+                      ) : (
+                        notifications.slice(0, 10).map((notif) => {
+                          const icon = getNotificationIcon(notif.type);
+                          const color = getNotificationColor(notif.type);
+                          const isUnread = !notif.read;
+
+                          return (
+                            <div
+                              key={notif.id}
+                              className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${
+                                isUnread ? "bg-green-50/30" : ""
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`p-1.5 rounded-lg ${color}`}>
+                                  <span className="text-lg">{icon}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <Link
+                                    href={notif.metadata?.link || "#"}
+                                    onClick={() => {
+                                      if (isUnread) handleMarkAsRead(notif.id);
+                                      setShowNotifications(false);
+                                    }}
+                                  >
+                                    <p
+                                      className={`text-sm ${isUnread ? "font-semibold text-gray-900" : "text-gray-700"}`}
+                                    >
+                                      {notif.title}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                                      {notif.body}
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      {formatDistanceToNow(
+                                        new Date(notif.createdAt),
+                                        { addSuffix: true },
+                                      )}
+                                    </p>
+                                  </Link>
+                                </div>
+                                {isUnread && (
+                                  <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
+
                     <Link
                       href="/notifications"
+                      onClick={() => setShowNotifications(false)}
                       className="block text-center text-sm text-green-600 hover:text-green-700 font-medium py-3 border-t border-gray-100"
                     >
-                      View all notifications
+                      View all notifications →
                     </Link>
                   </div>
                 )}
@@ -478,7 +573,6 @@ export default function Header() {
                       </p>
                     </div>
 
-                    {/* Role-based quick links */}
                     {getRoleNavItems()
                       .slice(0, 4)
                       .map((item) => (
