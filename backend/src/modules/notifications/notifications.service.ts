@@ -26,78 +26,112 @@ export class NotificationsService {
   }) {
     const { userId, type, title, body, metadata, channels = ['IN_APP'] } = data;
 
+    const results = [];
+
     // Send in-app notification
     if (channels.includes('IN_APP')) {
-      await this.notificationsQueue.add(NOTIFICATION_JOBS.SEND_IN_APP, {
-        userId,
-        type,
-        title,
-        body,
-        metadata,
-      });
+      try {
+        await this.notificationsQueue.add(NOTIFICATION_JOBS.SEND_IN_APP, {
+          userId,
+          type,
+          title,
+          body,
+          metadata,
+        });
+        results.push({ channel: 'IN_APP', status: 'queued' });
+      } catch (error) {
+        this.logger.error(`Failed to queue IN_APP notification: ${error as Error}.message}`);
+        results.push({ channel: 'IN_APP', status: 'failed', error: (error as Error).message });
+      }
     }
 
     // Send Telegram notification
     if (channels.includes('TELEGRAM')) {
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { telegramId: true },
-      });
-      if (user?.telegramId) {
-        const message = `📢 *${title}*\n\n${body}`;
-        await this.notificationsQueue.add(NOTIFICATION_JOBS.SEND_TELEGRAM, {
-          telegramId: user.telegramId,
-          message,
+      try {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { telegramId: true },
         });
+        if (user?.telegramId) {
+          const message = `📢 *${title}*\n\n${body}`;
+          await this.notificationsQueue.add(NOTIFICATION_JOBS.SEND_TELEGRAM, {
+            telegramId: user.telegramId,
+            message,
+          });
+          results.push({ channel: 'TELEGRAM', status: 'queued' });
+        } else {
+          this.logger.warn(`User ${userId} has no telegramId`);
+          results.push({ channel: 'TELEGRAM', status: 'skipped', reason: 'No telegramId' });
+        }
+      } catch (error) {
+        this.logger.error(`Failed to queue TELEGRAM notification: ${error as Error}.message}`);
+        results.push({ channel: 'TELEGRAM', status: 'failed', error: (error as Error).message });
       }
     }
 
     // Send Email notification
     if (channels.includes('EMAIL')) {
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true, firstName: true },
-      });
-      if (user?.email) {
-        const html = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: #22c55e; padding: 20px; text-align: center; color: white; border-radius: 8px 8px 0 0; }
-              .content { padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; }
-              .button { display: inline-block; background: #22c55e; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h2>${title}</h2>
-              </div>
-              <div class="content">
-                <p>Hello ${user.firstName || 'User'},</p>
-                <p>${body}</p>
-                <p>
-                  <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/notifications" class="button">View Notifications</a>
-                </p>
-                <p style="color: #999; font-size: 12px;">Beleqet Job Platform</p>
-              </div>
-            </div>
-          </body>
-          </html>
-        `;
-        await this.notificationsQueue.add(NOTIFICATION_JOBS.SEND_EMAIL, {
-          to: user.email,
-          subject: title,
-          html,
+      try {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true, firstName: true },
         });
+        if (user?.email) {
+          const html = this.buildEmailTemplate(title, body, user.firstName);
+          await this.notificationsQueue.add(NOTIFICATION_JOBS.SEND_EMAIL, {
+            to: user.email,
+            subject: title,
+            html,
+          });
+          results.push({ channel: 'EMAIL', status: 'queued' });
+        } else {
+          this.logger.warn(`User ${userId} has no email`);
+          results.push({ channel: 'EMAIL', status: 'skipped', reason: 'No email' });
+        }
+      } catch (error) {
+        this.logger.error(`Failed to queue EMAIL notification: ${error as Error}.message}`);
+        results.push({ channel: 'EMAIL', status: 'failed', error: (error as Error).message });
       }
     }
 
-    this.logger.debug(`Notification sent to ${userId}: ${title}`);
-    return { success: true, userId, type, title };
+    this.logger.debug(`Notification sent to ${userId}: ${title} (${results.length} channels)`);
+    return { success: true, userId, type, title, results };
+  }
+
+  private buildEmailTemplate(title: string, body: string, firstName?: string): string {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; color: #333; margin: 0; padding: 0; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #22c55e; padding: 20px; text-align: center; color: white; border-radius: 8px 8px 0 0; }
+          .content { padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #22c55e; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; }
+          .footer { color: #999; font-size: 12px; text-align: center; padding-top: 20px; border-top: 1px solid #e5e7eb; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2 style="margin: 0;">${title}</h2>
+          </div>
+          <div class="content">
+            <p>Hello ${firstName || 'User'},</p>
+            <p>${body}</p>
+            <p style="text-align: center;">
+              <a href="${frontendUrl}/notifications" class="button">View Notifications</a>
+            </p>
+            <div class="footer">
+              Beleqet Job Platform
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
   }
 
   // ── Get User Notifications ─────────────────────────────────────────

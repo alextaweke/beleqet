@@ -1,3 +1,4 @@
+// backend/src/modules/queues/queues.constants.ts
 // =============================================================================
 // Beleqet — BullMQ Queue & Job Type Constants
 // All queue names and job types in one place to prevent typos across modules.
@@ -36,19 +37,20 @@ export const ANALYTICS_JOBS = {
   UPDATE_JOB_STATS: 'update-job-stats',
   UPDATE_USER_STATS: 'update-user-stats',
   LOG_EVENT: 'log-platform-event',
-  // ── ADD THESE ──
   GENERATE_DAILY_REPORT: 'generate-daily-report',
   UPDATE_FREELANCE_STATS: 'update-freelance-stats',
   UPDATE_APPLICATION_STATS: 'update-application-stats',
   UPDATE_CONTRACT_STATS: 'update-contract-stats',
   UPDATE_ESCROW_STATS: 'update-escrow-stats',
+  UPDATE_WALLET_STATS: 'update-wallet-stats',
+  UPDATE_BID_STATS: 'update-bid-stats',
 } as const;
 
 // ── Escrow jobs ───────────────────────────────────────────────────────────
 
 export const ESCROW_JOBS = {
   PROCESS_WEBHOOK: 'process-payment-webhook',
-  AUTO_RELEASE: 'auto-release-milestone', // 14-day auto-approval
+  AUTO_RELEASE: 'auto-release-milestone',
   PROCESS_WITHDRAWAL: 'process-wallet-withdrawal',
 } as const;
 
@@ -60,5 +62,3 @@ export const SCORING = {
   /** Candidates below this threshold are automatically rejected */
   AUTO_REJECT_THRESHOLD: 30,
 } as const;
-
-// backend/src/modules/queues/queues.constants.ts

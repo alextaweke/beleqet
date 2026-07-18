@@ -15,8 +15,7 @@ export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
-    @InjectQueue(QUEUE_NAMES.APPLICATION)
-    private readonly applicationQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.APPLICATION) private readonly applicationQueue: Queue,
     @InjectQueue(QUEUE_NAMES.ANALYTICS)
     private readonly analyticsQueue: Queue,
   ) {}
