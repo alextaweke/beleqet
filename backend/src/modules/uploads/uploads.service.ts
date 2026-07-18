@@ -7,13 +7,13 @@ import * as path from 'path';
 
 @Injectable()
 export class UploadsService {
-  private s3Client: S3Client;
+  private s3Client!: S3Client;
   private bucket: string;
   private readonly logger = new Logger(UploadsService.name);
 
   constructor(private config: ConfigService) {
     this.bucket = this.config.get<string>('AWS_S3_BUCKET', 'beleqet-uploads');
-    
+
     // Support AWS S3, Cloudflare R2, or DigitalOcean Spaces
     const endpoint = this.config.get<string>('AWS_ENDPOINT');
     const region = this.config.get<string>('AWS_REGION', 'us-east-1');
@@ -24,7 +24,7 @@ export class UploadsService {
       this.s3Client = new S3Client({
         region,
         ...(endpoint && { endpoint }),
-        credentials: { accessKeyId, secretAccessKey }
+        credentials: { accessKeyId, secretAccessKey },
       });
     } else {
       this.logger.warn('AWS credentials not found in .env. Uploads will fail.');
@@ -32,7 +32,8 @@ export class UploadsService {
   }
 
   async generatePresignedUrl(filename: string, contentType: string, folder = 'misc') {
-    if (!this.s3Client) throw new InternalServerErrorException('Cloud storage not configured on server');
+    if (!this.s3Client)
+      throw new InternalServerErrorException('Cloud storage not configured on server');
 
     // Generate random secure filename to prevent overwrites
     const ext = path.extname(filename);

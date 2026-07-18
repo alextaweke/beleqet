@@ -27,6 +27,7 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  BarChart,
 } from "lucide-react";
 
 // ── Public Navigation ──────────────────────────────────────────────────
@@ -45,6 +46,7 @@ const roleNavItems = {
     { label: "My Applications", href: "/dashboard/seeker/applications" },
     { label: "Wallet", href: "/freelance/wallet" },
     { label: "Profile", href: "/users/profile" },
+    { label: "Analytics", href: "/dashboard/seeker/analytics" },
   ],
   FREELANCER: [
     { label: "Dashboard", href: "/dashboard/freelancer" },
@@ -60,6 +62,7 @@ const roleNavItems = {
     { label: "Applications", href: "/dashboard/employer/applications" },
     { label: "Contracts", href: "/contracts" },
     { label: "Profile", href: "/users/profile" },
+    { label: "Analytics", href: "/dashboard/employer/analytics" },
   ],
   ADMIN: [
     { label: "Dashboard", href: "/dashboard/admin" },
@@ -68,6 +71,7 @@ const roleNavItems = {
     { label: "Disputes", href: "/admin/disputes" },
     { label: "Contracts", href: "/contracts" },
     { label: "Profile", href: "/users/profile" },
+    { label: "Analytics", href: "/dashboard/admin/analytics" },
   ],
 };
 
@@ -341,6 +345,9 @@ export default function Header() {
                         )}
                         {item.label === "Disputes" && (
                           <Scale className="h-4 w-4 text-gray-400" />
+                        )}
+                        {item.label === "Analytics" && (
+                          <BarChart className="h-4 w-4 text-gray-400" />
                         )}
                         {item.label}
                       </Link>
