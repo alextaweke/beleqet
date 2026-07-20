@@ -1,40 +1,23 @@
+// app/marketplace/page.tsx - Update with AdvancedSearch
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Search,
   Briefcase,
-  Filter,
-  ChevronDown,
-  ChevronUp,
-  X,
   DollarSign,
   Clock,
   User,
   Star,
   MapPin,
-  SlidersHorizontal,
-  Shield,
-  Sparkles,
-  TrendingUp,
-  Code,
-  PenTool,
-  Megaphone,
   Building2,
 } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { jobsService } from "@/lib/jobs";
 import { freelanceService } from "@/lib/freelance";
 import { formatDistanceToNow } from "date-fns";
-
-// Unified Category Type
-interface UnifiedCategory {
-  id: string;
-  label: string;
-  slug: string;
-  icon: string | null;
-}
+import AdvancedSearch from "@/components/AdvancedSearch";
+import { useSavedSearches } from "@/hooks/useSavedSearches";
 
 // Types
 interface JobItem {
@@ -70,159 +53,130 @@ interface JobItem {
   pricingType?: string;
 }
 
-// Category icons mapping
-const categoryIcons: Record<string, any> = {
-  "web-development": Code,
-  "writing-translation": PenTool,
-  marketing: Megaphone,
-  design: PenTool,
-  programming: Code,
-  sales: Megaphone,
-  business: Building2,
-  default: Briefcase,
-};
+interface SearchFilters {
+  query: string;
+  type: "all" | "jobs" | "freelance";
+  category: string;
+  location: string;
+  minBudget: number;
+  maxBudget: number;
+  minSalary: number;
+  maxSalary: number;
+  experienceLevel: string;
+  remote: boolean;
+  featured: boolean;
+  urgent: boolean;
+  skills: string[];
+  sortBy: "recent" | "budget_high" | "budget_low" | "popular";
+}
 
 export default function MarketplacePage() {
   const { user, isAuthenticated } = useAuth();
+  const { savedSearches, saveSearch } = useSavedSearches();
   const [items, setItems] = useState<JobItem[]>([]);
-  const [categories, setCategories] = useState<UnifiedCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalItems, setTotalItems] = useState(0);
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("");
-  const [type, setType] = useState<"all" | "job" | "freelance">("all");
-  const [showFilters, setShowFilters] = useState(false);
-  const [showAllCategories, setShowAllCategories] = useState(false);
-  const [activeTab, setActiveTab] = useState<"all" | "jobs" | "freelance">(
-    "all",
-  );
-  const CATEGORIES_TO_SHOW = 6;
-
-  // Fetch categories from both services
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const [jobCats, freelanceCats] = await Promise.all([
-          jobsService.getCategories(),
-          freelanceService.getCategories(),
-        ]);
-
-        // Convert to unified type and merge
-        const jobCategories: UnifiedCategory[] = (
-          Array.isArray(jobCats) ? jobCats : []
-        ).map((cat: any) => ({
-          id: cat.id,
-          label: cat.label,
-          slug: cat.slug,
-          icon: cat.icon || null,
-        }));
-
-        const freelanceCategories: UnifiedCategory[] = (
-          Array.isArray(freelanceCats) ? freelanceCats : []
-        ).map((cat: any) => ({
-          id: cat.id,
-          label: cat.label,
-          slug: cat.slug,
-          icon: cat.icon || null,
-        }));
-
-        // Merge and deduplicate by slug
-        const merged = [...jobCategories, ...freelanceCategories];
-        const unique = merged.filter(
-          (cat, index, self) =>
-            index === self.findIndex((c) => c.slug === cat.slug),
-        );
-
-        setCategories(unique);
-      } catch (error) {
-        console.error("Failed to fetch categories:", error);
-        setCategories([]);
-      }
-    };
-    fetchCategories();
-  }, []);
+  const [filters, setFilters] = useState<SearchFilters>({
+    query: "",
+    type: "all",
+    category: "",
+    location: "",
+    minBudget: 0,
+    maxBudget: 100000,
+    minSalary: 0,
+    maxSalary: 500000,
+    experienceLevel: "",
+    remote: false,
+    featured: false,
+    urgent: false,
+    skills: [],
+    sortBy: "recent",
+  });
 
   // Fetch items based on filters
-  useEffect(() => {
-    const fetchItems = async () => {
-      try {
-        setLoading(true);
-        let allItems: JobItem[] = [];
-        let total = 0;
+  const fetchItems = async (searchFilters: SearchFilters) => {
+    try {
+      setLoading(true);
+      let allItems: JobItem[] = [];
+      let total = 0;
 
-        const params: any = {};
-        if (query) params.q = query;
-        if (category) params.category = category;
-        params.page = 1;
-        params.limit = 20;
+      const params: any = {};
+      if (searchFilters.query) params.q = searchFilters.query;
+      if (searchFilters.category) params.category = searchFilters.category;
+      if (searchFilters.location) params.location = searchFilters.location;
+      if (searchFilters.type === "jobs") params.type = "FULL_TIME";
+      params.page = 1;
+      params.limit = 20;
 
-        // Fetch based on active tab
-        if (activeTab === "all" || activeTab === "jobs") {
-          try {
-            const jobResponse = await jobsService.findAll(params);
-            const jobs = (jobResponse?.items || []).map((job: any) => ({
-              ...job,
-              type: "job" as const,
-              _count: { applications: job._count?.applications || 0 },
-            }));
-            allItems = [...allItems, ...jobs];
-            total += jobResponse?.total || 0;
-          } catch (err) {
-            console.error("Error fetching jobs:", err);
-          }
+      if (searchFilters.type === "all" || searchFilters.type === "jobs") {
+        try {
+          const jobResponse = await jobsService.findAll(params);
+          const jobs = (jobResponse?.items || []).map((job: any) => ({
+            ...job,
+            type: "job" as const,
+            _count: { applications: job._count?.applications || 0 },
+          }));
+          allItems = [...allItems, ...jobs];
+          total += jobResponse?.total || 0;
+        } catch (err) {
+          console.error("Error fetching jobs:", err);
         }
-
-        if (activeTab === "all" || activeTab === "freelance") {
-          try {
-            const freelanceResponse = await freelanceService.getJobs(params);
-            const freelance = (freelanceResponse?.items || []).map(
-              (gig: any) => ({
-                ...gig,
-                type: "freelance" as const,
-                _count: { bids: gig._count?.bids || 0 },
-              }),
-            );
-            allItems = [...allItems, ...freelance];
-            total += freelanceResponse?.total || 0;
-          } catch (err) {
-            console.error("Error fetching freelance gigs:", err);
-          }
-        }
-
-        // Sort by createdAt (newest first)
-        allItems.sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        );
-
-        setItems(allItems);
-        setTotalItems(total);
-      } catch (err: any) {
-        console.error("Error fetching items:", err);
-        setError(err.message || "Failed to load opportunities");
-      } finally {
-        setLoading(false);
       }
-    };
 
-    const timeoutId = setTimeout(fetchItems, 300);
-    return () => clearTimeout(timeoutId);
-  }, [query, category, activeTab]);
+      if (searchFilters.type === "all" || searchFilters.type === "freelance") {
+        try {
+          const freelanceResponse = await freelanceService.getJobs(params);
+          const freelance = (freelanceResponse?.items || []).map(
+            (gig: any) => ({
+              ...gig,
+              type: "freelance" as const,
+              _count: { bids: gig._count?.bids || 0 },
+            }),
+          );
+          allItems = [...allItems, ...freelance];
+          total += freelanceResponse?.total || 0;
+        } catch (err) {
+          console.error("Error fetching freelance gigs:", err);
+        }
+      }
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+      // Sort
+      switch (searchFilters.sortBy) {
+        case "budget_high":
+          allItems.sort((a, b) => (b.budgetMax || 0) - (a.budgetMax || 0));
+          break;
+        case "budget_low":
+          allItems.sort((a, b) => (a.budgetMax || 0) - (b.budgetMax || 0));
+          break;
+        case "popular":
+          allItems.sort(
+            (a, b) =>
+              (b._count.applications || 0) - (a._count.applications || 0),
+          );
+          break;
+        default:
+          allItems.sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          );
+      }
+
+      setItems(allItems);
+      setTotalItems(total);
+      setFilters(searchFilters);
+    } catch (err: any) {
+      console.error("Error fetching items:", err);
+      setError(err.message || "Failed to load opportunities");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const clearAllFilters = () => {
-    setQuery("");
-    setCategory("");
-    setActiveTab("all");
-  };
-
-  const visibleCategories = showAllCategories
-    ? categories
-    : categories.slice(0, CATEGORIES_TO_SHOW);
+  // Initial load
+  useEffect(() => {
+    fetchItems(filters);
+  }, []);
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
@@ -254,24 +208,16 @@ export default function MarketplacePage() {
       : { label: "Freelance", className: "bg-purple-100 text-purple-700" };
   };
 
-  const getCategoryIcon = (slug: string) => {
-    return categoryIcons[slug] || categoryIcons.default;
-  };
-
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName?.charAt(0) || ""}${lastName?.charAt(0) || ""}`.toUpperCase();
   };
 
   if (loading && items.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="container mx-auto px-4 py-10 max-w-7xl">
-          <div className="flex justify-center items-center min-h-[400px]">
-            <div className="text-center">
-              <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-green-600 border-t-transparent"></div>
-              <p className="mt-4 text-gray-600">Loading opportunities...</p>
-            </div>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-green-600 border-t-transparent"></div>
+          <p className="mt-4 text-gray-600">Loading opportunities...</p>
         </div>
       </div>
     );
@@ -279,8 +225,8 @@ export default function MarketplacePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="container mx-auto px-4 py-10 max-w-7xl">
+      <div className="min-h-screen bg-gray-50 py-12">
+        <div className="container mx-auto px-4 max-w-7xl">
           <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
             <p className="text-red-600 font-semibold">Error: {error}</p>
             <button
@@ -296,8 +242,8 @@ export default function MarketplacePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="container mx-auto px-4 max-w-7xl">
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-2xl p-8 md:p-12 mb-8 text-white">
           <div className="max-w-3xl">
@@ -323,438 +269,190 @@ export default function MarketplacePage() {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-2 mb-6">
-          <form onSubmit={handleSearch} className="flex flex-col md:flex-row">
-            <div className="flex-1 flex items-center gap-3 px-4 py-2.5">
-              <Search className="h-5 w-5 text-gray-400 shrink-0" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search for jobs, freelance projects, or keywords..."
-                className="w-full text-sm text-gray-900 placeholder:text-gray-400 outline-none bg-transparent"
-              />
-            </div>
-            <div className="hidden md:block w-px bg-gray-200" />
-            <button
-              type="submit"
-              className="md:ml-1 px-6 py-2.5 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors"
-            >
-              Search
-            </button>
-          </form>
+        {/* Advanced Search Component */}
+        <AdvancedSearch
+          onSearch={fetchItems}
+          onSaveSearch={saveSearch}
+          savedSearches={savedSearches}
+          initialFilters={filters}
+          className="mb-8"
+        />
+
+        {/* Results Count */}
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-gray-600">
+            Showing{" "}
+            <span className="font-medium text-gray-900">{items.length}</span>{" "}
+            {filters.type === "all"
+              ? "opportunities"
+              : filters.type === "jobs"
+                ? "jobs"
+                : "gigs"}
+          </p>
         </div>
 
-        {/* Active Filters */}
-        {(category || query || activeTab !== "all") && (
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <span className="text-xs text-gray-500 font-medium mr-1">
-              Active filters:
-            </span>
-            {query && (
-              <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full">
-                {query}
-                <button
-                  onClick={() => setQuery("")}
-                  className="hover:text-red-500 transition-colors"
+        {/* Results Grid */}
+        {items.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Briefcase className="h-8 w-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              No opportunities found
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Try adjusting your search or clearing your filters.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {items.map((item) => {
+              const status = getStatusBadge(item.status);
+              const typeBadge = getTypeBadge(item.type);
+              const initials = getInitials(
+                item.client?.firstName,
+                item.client?.lastName,
+              );
+              const isJob = item.type === "job";
+
+              return (
+                <Link
+                  key={item.id}
+                  href={isJob ? `/jobs/${item.id}` : `/freelance/${item.id}`}
+                  className="group bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-md hover:border-green-200 transition-all"
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            )}
-            {category && (
-              <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full">
-                {categories.find((c) => c.slug === category)?.label || category}
-                <button
-                  onClick={() => setCategory("")}
-                  className="hover:text-red-500 transition-colors"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            )}
-            {activeTab !== "all" && (
-              <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full">
-                {activeTab === "jobs" ? "Full-Time Jobs" : "Freelance Gigs"}
-                <button
-                  onClick={() => setActiveTab("all")}
-                  className="hover:text-red-500 transition-colors"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            )}
-            <button
-              onClick={clearAllFilters}
-              className="text-xs text-gray-500 hover:text-red-500 transition-colors ml-1"
-            >
-              Clear all
-            </button>
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                    {/* Avatar */}
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-100 to-green-200 text-green-700 flex items-center justify-center font-semibold text-sm">
+                        {initials || "U"}
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
+                              {item.title}
+                            </h3>
+                            {item.featured && (
+                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                                ⭐ Featured
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <span className="text-sm text-gray-500">
+                              {item.client?.firstName} {item.client?.lastName}
+                            </span>
+                            <span className="text-xs text-gray-300">•</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeBadge.className}`}
+                            >
+                              {typeBadge.label}
+                            </span>
+                          </div>
+                        </div>
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium ${status.className}`}
+                        >
+                          {status.label}
+                        </span>
+                      </div>
+
+                      {/* Meta */}
+                      <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500">
+                        {item.budgetMin || item.salaryMin ? (
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="h-4 w-4" />
+                            {item.currency}{" "}
+                            {isJob
+                              ? `${item.salaryMin} - ${item.salaryMax}`
+                              : `${item.budgetMin} - ${item.budgetMax}`}
+                            <span className="text-xs text-gray-400 ml-1">
+                              {isJob ? "/year" : item.pricingType}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-gray-400">
+                            <DollarSign className="h-4 w-4" />
+                            Not specified
+                          </span>
+                        )}
+                        {item.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-4 w-4" />
+                            {item.location}
+                          </span>
+                        )}
+                        {item.deadlineDays && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            {item.deadlineDays} days
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Briefcase className="h-4 w-4" />
+                          {isJob
+                            ? `${item._count.applications || 0} applicants`
+                            : `${item._count.bids || 0} proposals`}
+                        </span>
+                      </div>
+
+                      {/* Description Preview */}
+                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                        {item.description}
+                      </p>
+
+                      {/* Skills */}
+                      {item.skills && item.skills.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {item.skills.slice(0, 4).map((skill, index) => (
+                            <span
+                              key={index}
+                              className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                          {item.skills.length > 4 && (
+                            <span className="text-xs text-gray-400">
+                              +{item.skills.length - 4} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                        <span className="text-xs text-gray-400">
+                          Posted{" "}
+                          {formatDistanceToNow(new Date(item.createdAt), {
+                            addSuffix: true,
+                          })}
+                        </span>
+                        <span className="text-sm font-medium text-green-600 group-hover:text-green-700 flex items-center gap-1">
+                          View Details →
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
 
-        {/* Filter Toggle - Mobile */}
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="lg:hidden flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 mb-4 hover:bg-gray-50 transition-colors w-full justify-center"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          Filters & Categories
-          {(category || activeTab !== "all") && (
-            <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-              {[category, activeTab !== "all"].filter(Boolean).length} active
-            </span>
-          )}
-        </button>
-
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
-          {/* Filters Sidebar */}
-          <aside
-            className={`${showFilters ? "block" : "hidden"} lg:block space-y-6`}
-          >
-            {/* Tabs */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">
-                Opportunity Type
-              </h3>
-              <div className="space-y-1">
-                <button
-                  onClick={() => setActiveTab("all")}
-                  className={`block w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
-                    activeTab === "all"
-                      ? "bg-green-50 text-green-700 font-medium"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  All Opportunities
-                </button>
-                <button
-                  onClick={() => setActiveTab("jobs")}
-                  className={`block w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
-                    activeTab === "jobs"
-                      ? "bg-blue-50 text-blue-700 font-medium"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    Full-Time Jobs
-                  </span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("freelance")}
-                  className={`block w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
-                    activeTab === "freelance"
-                      ? "bg-purple-50 text-purple-700 font-medium"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <Briefcase className="h-4 w-4" />
-                    Freelance Gigs
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Categories */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-4">
-                <Filter className="h-4 w-4 text-gray-500" />
-                Categories
-                <span className="ml-auto text-xs text-gray-400">
-                  {categories.length}
-                </span>
-              </h3>
-              <div className="space-y-1">
-                <button
-                  onClick={() => setCategory("")}
-                  className={`block w-full text-left text-sm px-3 py-2 rounded-lg transition-colors ${
-                    category === ""
-                      ? "bg-green-50 text-green-700 font-medium"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  All Categories
-                </button>
-                {visibleCategories.map((cat) => {
-                  const Icon = getCategoryIcon(cat.slug);
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setCategory(cat.slug)}
-                      className={`flex w-full items-center gap-2 text-left text-sm px-3 py-2 rounded-lg transition-colors ${
-                        category === cat.slug
-                          ? "bg-green-50 text-green-700 font-medium"
-                          : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4 text-gray-400" />
-                      <span className="flex-1">{cat.label}</span>
-                      <span className="text-xs text-gray-400">
-                        {
-                          items.filter((i) => i.category.slug === cat.slug)
-                            .length
-                        }
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {categories.length > CATEGORIES_TO_SHOW && (
-                <button
-                  onClick={() => setShowAllCategories(!showAllCategories)}
-                  className="flex items-center gap-1 mt-3 text-sm text-green-600 hover:text-green-700 font-medium transition-colors w-full justify-center"
-                >
-                  {showAllCategories ? (
-                    <>
-                      <ChevronUp className="h-4 w-4" />
-                      Show less
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="h-4 w-4" />
-                      Show {categories.length - CATEGORIES_TO_SHOW} more
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-
-            {/* Post Button */}
-            {isAuthenticated && (
-              <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-2xl p-6 border border-green-200">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  Post an Opportunity
-                </h3>
-                <p className="text-xs text-gray-600 mb-4">
-                  Find the perfect talent for your project or company
-                </p>
-                <div className="space-y-2">
-                  {user?.role === "EMPLOYER" && (
-                    <>
-                      <Link
-                        href="/post-job"
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors text-sm"
-                      >
-                        <Building2 className="h-4 w-4" />
-                        Post a Job
-                      </Link>
-                      <Link
-                        href="/freelance/post"
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition-colors text-sm"
-                      >
-                        <Briefcase className="h-4 w-4" />
-                        Post a Freelance Gig
-                      </Link>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </aside>
-
-          {/* Listings */}
-          <div>
-            {items.length === 0 ? (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Briefcase className="h-8 w-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  No opportunities found
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Try adjusting your search or clearing your filters.
-                </p>
-                {(query || category || activeTab !== "all") && (
-                  <button
-                    onClick={clearAllFilters}
-                    className="mt-4 text-sm text-green-600 hover:text-green-700 font-medium"
-                  >
-                    Clear all filters
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                  <p className="text-sm text-gray-600">
-                    Showing{" "}
-                    <span className="font-medium text-gray-900">
-                      {items.length}
-                    </span>{" "}
-                    {activeTab === "all"
-                      ? "opportunities"
-                      : activeTab === "jobs"
-                        ? "jobs"
-                        : "gigs"}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">Sort by:</span>
-                    <select className="text-sm border-0 bg-transparent font-medium text-gray-700 focus:ring-0">
-                      <option>Most Recent</option>
-                      <option>Budget (High to Low)</option>
-                      <option>Most Popular</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
-                  {items.map((item) => {
-                    const status = getStatusBadge(item.status);
-                    const typeBadge = getTypeBadge(item.type);
-                    const initials = getInitials(
-                      item.client?.firstName,
-                      item.client?.lastName,
-                    );
-                    const isJob = item.type === "job";
-
-                    return (
-                      <Link
-                        key={item.id}
-                        href={
-                          isJob ? `/jobs/${item.id}` : `/freelance/${item.id}`
-                        }
-                        className="group bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-md hover:border-green-200 transition-all"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                          {/* Avatar */}
-                          <div className="flex-shrink-0">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-100 to-green-200 text-green-700 flex items-center justify-center font-semibold text-sm">
-                              {initials || "U"}
-                            </div>
-                          </div>
-
-                          {/* Details */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="font-semibold text-gray-900 group-hover:text-green-600 transition-colors">
-                                    {item.title}
-                                  </h3>
-                                  {item.featured && (
-                                    <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
-                                      ⭐ Featured
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2 mt-1">
-                                  <span className="text-sm text-gray-500">
-                                    {item.client?.firstName}{" "}
-                                    {item.client?.lastName}
-                                  </span>
-                                  <span className="text-xs text-gray-300">
-                                    •
-                                  </span>
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeBadge.className}`}
-                                  >
-                                    {typeBadge.label}
-                                  </span>
-                                </div>
-                              </div>
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${status.className}`}
-                              >
-                                {status.label}
-                              </span>
-                            </div>
-
-                            {/* Meta */}
-                            <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500">
-                              {item.budgetMin || item.salaryMin ? (
-                                <span className="flex items-center gap-1">
-                                  <DollarSign className="h-4 w-4" />
-                                  {item.currency}{" "}
-                                  {isJob
-                                    ? `${item.salaryMin} - ${item.salaryMax}`
-                                    : `${item.budgetMin} - ${item.budgetMax}`}
-                                  <span className="text-xs text-gray-400 ml-1">
-                                    {isJob ? "/year" : item.pricingType}
-                                  </span>
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1 text-gray-400">
-                                  <DollarSign className="h-4 w-4" />
-                                  Not specified
-                                </span>
-                              )}
-                              {item.location && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="h-4 w-4" />
-                                  {item.location}
-                                </span>
-                              )}
-                              {item.deadlineDays && (
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-4 w-4" />
-                                  {item.deadlineDays} days
-                                </span>
-                              )}
-                              <span className="flex items-center gap-1">
-                                <Briefcase className="h-4 w-4" />
-                                {isJob
-                                  ? `${item._count.applications || 0} applicants`
-                                  : `${item._count.bids || 0} proposals`}
-                              </span>
-                            </div>
-
-                            {/* Description Preview */}
-                            <p className="text-sm text-gray-600 mt-2 line-clamp-2">
-                              {item.description}
-                            </p>
-
-                            {/* Skills */}
-                            {item.skills && item.skills.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-3">
-                                {item.skills.slice(0, 4).map((skill, index) => (
-                                  <span
-                                    key={index}
-                                    className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full"
-                                  >
-                                    {skill}
-                                  </span>
-                                ))}
-                                {item.skills.length > 4 && (
-                                  <span className="text-xs text-gray-400">
-                                    +{item.skills.length - 4} more
-                                  </span>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Footer */}
-                            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                              <span className="text-xs text-gray-400">
-                                Posted{" "}
-                                {formatDistanceToNow(new Date(item.createdAt), {
-                                  addSuffix: true,
-                                })}
-                              </span>
-                              <span className="text-sm font-medium text-green-600 group-hover:text-green-700 flex items-center gap-1">
-                                View Details →
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-
-                {items.length >= 20 && (
-                  <div className="text-center mt-8">
-                    <button className="px-6 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                      Load More
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
+        {/* Load More */}
+        {items.length >= 20 && (
+          <div className="text-center mt-8">
+            <button className="px-6 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+              Load More
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

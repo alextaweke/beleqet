@@ -83,10 +83,8 @@ export class FreelanceService {
     const limitNum = Number(query.limit) || 20;
     const { q, category } = query;
 
-    const where: Record<string, unknown> = {
-      status: {
-        in: [FreelanceJobStatus.OPEN, FreelanceJobStatus.FUNDED],
-      },
+    const where: Prisma.FreelanceJobWhereInput = {
+      status: FreelanceJobStatus.OPEN,
     };
 
     if (category) {

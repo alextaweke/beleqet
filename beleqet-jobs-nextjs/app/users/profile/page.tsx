@@ -36,6 +36,7 @@ import {
   Star,
 } from "lucide-react";
 import { format } from "date-fns";
+import TelegramConnect from "@/components/TelegramConnect";
 
 interface FormData {
   firstName: string;
@@ -836,7 +837,6 @@ export default function EditProfile() {
             </div>
           </div>
         </div>
-
         {/* ── AVATAR ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -867,7 +867,6 @@ export default function EditProfile() {
             )}
           </div>
         </div>
-
         {/* ── PROFESSIONAL ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -903,7 +902,6 @@ export default function EditProfile() {
             </div>
           </div>
         </div>
-
         {/* ── SKILLS ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -952,7 +950,6 @@ export default function EditProfile() {
             <p className="text-sm text-gray-500">No skills added yet.</p>
           )}
         </div>
-
         {/* ── LINKS ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -1012,16 +1009,52 @@ export default function EditProfile() {
             ))}
           </div>
         </div>
-
-        {/* ── TELEGRAM ── */}
+        {/* ── TELEGRAM INTEGRATION ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Send className="h-5 w-5 text-gray-500" />
-            Additional Information
+            <Send className="h-5 w-5 text-blue-500" />
+            Telegram Notifications
           </h2>
-          <div>
+          <p className="text-sm text-gray-600 mb-4">
+            Connect your Telegram account to receive instant notifications
+            about:
+          </p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full">
+              📋 Job applications
+            </span>
+            <span className="text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-full">
+              💼 Freelance bids
+            </span>
+            <span className="text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-full">
+              📝 Contract updates
+            </span>
+            <span className="text-xs bg-yellow-50 text-yellow-700 px-2.5 py-1 rounded-full">
+              💰 Payment notifications
+            </span>
+            <span className="text-xs bg-red-50 text-red-700 px-2.5 py-1 rounded-full">
+              💬 New messages
+            </span>
+          </div>
+
+          {/* ✅ Telegram Connect Component */}
+          <TelegramConnect />
+
+          <p className="text-xs text-gray-400 mt-3">
+            💡 Your Telegram ID is stored securely and only used for sending
+            notifications.
+          </p>
+        </div>
+        ── ADDITIONAL INFORMATION (with manual Telegram ID) ──
+        {/* <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6"> */}
+        {/* <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <User className="h-5 w-5 text-gray-500" />
+            Additional Information
+          </h2> */}
+        {/* Telegram ID - Manual Entry (optional, since we have the component above)
+          <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Telegram ID
+              Telegram ID (Manual Entry)
             </label>
             <input
               type="text"
@@ -1031,9 +1064,13 @@ export default function EditProfile() {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-gray-900"
               placeholder="@your_telegram_username"
             />
-          </div>
-        </div>
-
+            <p className="text-xs text-gray-400 mt-1.5">
+              Or use the Telegram Connect component above to automatically
+              connect.
+            </p>
+          </div> */}
+        {/* You can add other additional info here */}
+        {/* </div> */}
         {/* ── PORTFOLIO MANAGEMENT ── */}
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -1325,7 +1362,6 @@ export default function EditProfile() {
             </div>
           </div>
         </div>
-
         {/* ── VALIDATION ERRORS ── */}
         {fieldErrors.length > 0 && (
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
@@ -1342,7 +1378,6 @@ export default function EditProfile() {
             </ul>
           </div>
         )}
-
         {/* ── SAVE ── */}
         <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
           <button

@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_NAMES, NOTIFICATION_JOBS } from '../queues/queues.constants';
 import * as nodemailer from 'nodemailer';
+import { TelegramService } from '../telegram/telegram.service';
 
 interface InAppPayload {
   userId: string;
@@ -30,11 +31,12 @@ export interface EmailPayload {
 @Processor(QUEUE_NAMES.NOTIFICATIONS)
 export class NotificationsProcessor {
   private readonly logger = new Logger(NotificationsProcessor.name);
-  private readonly transporter!: nodemailer.Transporter;
+  private readonly transporter: nodemailer.Transporter | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly telegramService: TelegramService, // ✅ Inject TelegramService
   ) {
     // Only create transporter if SMTP is configured
     const smtpHost = this.config.get<string>('SMTP_HOST');
@@ -50,6 +52,8 @@ export class NotificationsProcessor {
       });
     }
   }
+
+  // ── IN-APP NOTIFICATIONS ─────────────────────────────────────────────
 
   @Process(NOTIFICATION_JOBS.SEND_IN_APP)
   async sendInApp(job: Job<InAppPayload>) {
@@ -78,6 +82,8 @@ export class NotificationsProcessor {
     }
   }
 
+  // ── TELEGRAM NOTIFICATIONS ───────────────────────────────────────────
+
   @Process(NOTIFICATION_JOBS.SEND_TELEGRAM)
   async sendTelegram(job: Job<TelegramPayload>) {
     const { telegramId, message } = job.data;
@@ -86,33 +92,20 @@ export class NotificationsProcessor {
       return;
     }
 
-    const botToken = this.config.get<string>('TELEGRAM_BOT_TOKEN');
-    if (!botToken) {
-      this.logger.warn('TELEGRAM_BOT_TOKEN not configured');
-      return;
-    }
-
     try {
-      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: telegramId,
-          text: message,
-          parse_mode: 'Markdown',
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        this.logger.warn(`Telegram API error: ${error}`);
-      } else {
+      // ✅ Use TelegramService to send message
+      const success = await this.telegramService.sendMessage(telegramId, message);
+      if (success) {
         this.logger.debug(`✅ Telegram notification sent to ${telegramId}`);
+      } else {
+        this.logger.warn(`Failed to send Telegram notification to ${telegramId}`);
       }
     } catch (error) {
-      this.logger.warn(`Telegram failed: ${(error as Error).message}`);
+      this.logger.error(`Failed to send Telegram: ${(error as Error).message}`);
     }
   }
+
+  // ── EMAIL NOTIFICATIONS ──────────────────────────────────────────────
 
   @Process(NOTIFICATION_JOBS.SEND_EMAIL)
   async sendEmail(job: Job<EmailPayload>) {
