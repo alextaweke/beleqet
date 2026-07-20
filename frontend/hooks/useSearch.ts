@@ -1,7 +1,34 @@
 // lib/hooks/useSearch.ts
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/config";
-import { debounce } from "lodash";
+
+type DebouncedFunction<T extends (...args: any[]) => any> = ((...args: Parameters<T>) => void) & {
+  cancel: () => void;
+};
+
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): DebouncedFunction<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  const debounced = (...args: Parameters<T>) => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+
+    timeout = setTimeout(() => {
+      timeout = null;
+      func(...args);
+    }, wait);
+  };
+
+  debounced.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+
+  return debounced;
+}
 
 interface SearchResult<T> {
   items: T[];
