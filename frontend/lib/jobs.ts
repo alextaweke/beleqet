@@ -44,6 +44,7 @@ export interface QueryJobsDto {
 }
 
 export interface JobResponse {
+  verified: import("react").JSX.Element;
   id: string;
   title: string;
   description: string;

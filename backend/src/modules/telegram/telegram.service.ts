@@ -6,62 +6,117 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
-  private bot!: Telegraf;
+  private bot: Telegraf | null = null;
   private readonly logger = new Logger(TelegramService.name);
+  private isBotStarted = false;
 
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
   ) {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
-    if (token && token !== 'your_bot_token_here') {
-      this.bot = new Telegraf(token);
+    // ✅ Better validation - check if token is valid format
+    if (token && token !== 'your_bot_token_here' && token.length > 10) {
+      try {
+        this.bot = new Telegraf(token);
+        this.logger.log('Telegram bot initialized successfully');
+      } catch (error) {
+        this.logger.error('Failed to initialize Telegram bot:', (error as Error).message);
+        this.bot = null;
+      }
+    } else {
+      this.logger.warn('Valid TELEGRAM_BOT_TOKEN not provided. Telegram features disabled.');
     }
   }
 
   async onModuleInit() {
+    // ✅ Only try to start bot if token is configured
     if (!this.bot) {
-      this.logger.warn('Valid TELEGRAM_BOT_TOKEN not provided. Telegram bot listener disabled.');
+      this.logger.warn('⚠️ Telegram bot not configured. Skipping bot startup.');
       return;
     }
 
-    // ── Commands ──────────────────────────────────────────────────────
+    try {
+      // ✅ Set up commands
+      this.setupCommands();
 
-    // /start - Welcome message
-    this.bot.command('start', async (ctx) => {
-      const telegramId = String(ctx.from.id);
-      const firstName = ctx.from.first_name || 'User';
+      // ✅ Try to start the bot with a timeout
+      await this.startBotWithTimeout();
 
-      // Check if user exists in database
-      const user = await this.prisma.user.findFirst({
-        where: { telegramId },
-      });
-
-      let message = `👋 Welcome to Beleqet, ${firstName}!\n\n`;
-
-      if (user) {
-        message += `✅ Your account (${user.email}) is already connected to this Telegram ID.\n\n`;
-        message += `You will receive notifications for:\n`;
-        message += `📋 Job applications\n`;
-        message += `💼 Freelance bids\n`;
-        message += `📝 Contract updates\n`;
-        message += `💰 Payment notifications\n`;
-        message += `💬 New messages\n\n`;
-        message += `To manage your notifications, visit your profile settings.`;
-      } else {
-        message += `🔑 Your Telegram ID is: \`${telegramId}\`\n\n`;
-        message += `To connect this Telegram account to your Beleqet profile:\n`;
-        message += `1. Go to your profile settings on Beleqet\n`;
-        message += `2. Paste this ID: \`${telegramId}\`\n`;
-        message += `3. Save your settings\n\n`;
-        message += `📌 Once connected, you'll receive instant notifications!`;
+      // ✅ Get bot info to verify it's working
+      try {
+        const botInfo = await this.bot.telegram.getMe();
+        this.logger.log(`✅ Telegram bot @${botInfo.username} started successfully`);
+      } catch (error) {
+        this.logger.error(`❌ Failed to get bot info: ${(error as Error).message}`);
+        this.logger.warn('Bot may not be running properly. Check your token.');
       }
+    } catch (error) {
+      this.logger.error(`❌ Failed to start Telegram bot: ${(error as Error).message}`);
+      this.logger.warn('Telegram features will be disabled. Check your TELEGRAM_BOT_TOKEN.');
+      this.bot = null;
+    }
+  }
 
-      await ctx.reply(message, { parse_mode: 'Markdown' });
-      this.logger.log(`Telegram /start by ${telegramId} (${firstName})`);
+  private async startBotWithTimeout() {
+    if (!this.bot) return;
+
+    const timeout = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Bot startup timeout after 10s')), 10000);
     });
 
-    // /help - Help message
+    try {
+      await Promise.race([this.bot.launch(), timeout]);
+      this.isBotStarted = true;
+      this.logger.log('Telegram bot launched successfully');
+    } catch (error) {
+      this.logger.error(`Failed to launch bot: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
+  private setupCommands() {
+    if (!this.bot) return;
+
+    // ── /start - Welcome message ──
+    this.bot.command('start', async (ctx) => {
+      try {
+        const telegramId = String(ctx.from.id);
+        const firstName = ctx.from.first_name || 'User';
+
+        const user = await this.prisma.user.findFirst({
+          where: { telegramId },
+        });
+
+        let message = `👋 Welcome to Beleqet, ${firstName}!\n\n`;
+
+        if (user) {
+          message += `✅ Your account (${user.email}) is already connected.\n\n`;
+          message += `You will receive notifications for:\n`;
+          message += `📋 Job applications\n`;
+          message += `💼 Freelance bids\n`;
+          message += `📝 Contract updates\n`;
+          message += `💰 Payment notifications\n`;
+          message += `💬 New messages\n\n`;
+          message += `To manage your notifications, visit your profile settings.`;
+        } else {
+          message += `🔑 Your Telegram ID is: \`${telegramId}\`\n\n`;
+          message += `To connect this Telegram account to your Beleqet profile:\n`;
+          message += `1. Go to your profile settings on Beleqet\n`;
+          message += `2. Paste this ID: \`${telegramId}\`\n`;
+          message += `3. Save your settings\n\n`;
+          message += `📌 Once connected, you'll receive instant notifications!`;
+        }
+
+        await ctx.reply(message, { parse_mode: 'Markdown' });
+        this.logger.debug(`Telegram /start by ${telegramId} (${firstName})`);
+      } catch (error) {
+        this.logger.error(`Error handling /start: ${(error as Error).message}`);
+        await ctx.reply('⚠️ Something went wrong. Please try again later.');
+      }
+    });
+
+    // ── /help - Help message ──
     this.bot.command('help', async (ctx) => {
       await ctx.reply(
         `📖 *Beleqet Telegram Bot Help*\n\n` +
@@ -75,137 +130,91 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       );
     });
 
-    // /profile - Check connected account
+    // ── /profile - Check connected account ──
     this.bot.command('profile', async (ctx) => {
-      const telegramId = String(ctx.from.id);
-      const user = await this.prisma.user.findFirst({
-        where: { telegramId },
-        select: {
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-        },
-      });
-
-      if (user) {
-        await ctx.reply(
-          `👤 *Your Profile*\n\n` +
-            `Name: ${user.firstName} ${user.lastName}\n` +
-            `Email: ${user.email}\n` +
-            `Role: ${user.role}\n` +
-            `Status: ✅ Connected\n\n` +
-            `You will receive notifications here.`,
-          { parse_mode: 'Markdown' },
-        );
-      } else {
+      try {
         const telegramId = String(ctx.from.id);
-        await ctx.reply(
-          `❌ No Beleqet account found for this Telegram ID.\n\n` +
-            `Please connect your account by adding this ID in your profile:\n` +
-            `\`${telegramId}\``,
-          { parse_mode: 'Markdown' },
-        );
-      }
-    });
+        const user = await this.prisma.user.findFirst({
+          where: { telegramId },
+          select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        });
 
-    // /notifications - Notification preferences
-    this.bot.command('notifications', async (ctx) => {
-      const telegramId = String(ctx.from.id);
-      const user = await this.prisma.user.findFirst({
-        where: { telegramId },
-      });
-
-      if (!user) {
-        await ctx.reply(
-          `❌ Please connect your Beleqet account first.\n` + `Use /start to get your Telegram ID.`,
-        );
-        return;
-      }
-
-      // Get notification count
-      const notifications = await this.prisma.notification.count({
-        where: { userId: user.id, channel: 'TELEGRAM' },
-      });
-
-      await ctx.reply(
-        `🔔 *Notification Settings*\n\n` +
-          `📊 Total notifications: ${notifications}\n` +
-          `📱 Channel: Telegram\n` +
-          `✅ Status: Active\n\n` +
-          `To manage preferences, visit your profile settings.`,
-        { parse_mode: 'Markdown' },
-      );
-    });
-
-    // /unsubscribe - Stop notifications
-    this.bot.command('unsubscribe', async (ctx) => {
-      const telegramId = String(ctx.from.id);
-
-      // Remove telegram ID from user
-      await this.prisma.user.updateMany({
-        where: { telegramId },
-        data: { telegramId: null },
-      });
-
-      await ctx.reply(
-        `✅ You have been unsubscribed from Beleqet notifications.\n\n` +
-          `You will no longer receive updates here.\n` +
-          `To reconnect, use /start and add your ID in profile settings.`,
-      );
-      this.logger.log(`Telegram unsubscribe: ${telegramId}`);
-    });
-
-    // ── Error Handling ────────────────────────────────────────────────
-
-    this.bot.catch((err, ctx) => {
-      this.logger.error(`Telegram error for ${ctx.updateType}:`, err);
-      ctx.reply('⚠️ Something went wrong. Please try again later.');
-    });
-
-    // ── Start Bot ─────────────────────────────────────────────────────
-
-    try {
-      // Use webhook or polling based on environment
-      const isProduction = this.config.get('NODE_ENV') === 'production';
-
-      if (isProduction) {
-        // Webhook mode for production
-        const webhookUrl = this.config.get<string>('TELEGRAM_WEBHOOK_URL');
-        if (webhookUrl) {
-          await this.bot.telegram.setWebhook(webhookUrl);
-          this.logger.log(`Telegram webhook set to: ${webhookUrl}`);
+        if (user) {
+          await ctx.reply(
+            `👤 *Your Profile*\n\n` +
+              `Name: ${user.firstName} ${user.lastName}\n` +
+              `Email: ${user.email}\n` +
+              `Role: ${user.role}\n` +
+              `Status: ✅ Connected\n\n` +
+              `You will receive notifications here.`,
+            { parse_mode: 'Markdown' },
+          );
+        } else {
+          await ctx.reply(
+            `❌ No Beleqet account found for this Telegram ID.\n\n` +
+              `Please connect your account by adding this ID in your profile:\n` +
+              `\`${telegramId}\``,
+            { parse_mode: 'Markdown' },
+          );
         }
+      } catch (error) {
+        this.logger.error(`Error handling /profile: ${(error as Error).message}`);
+        await ctx.reply('⚠️ Something went wrong. Please try again later.');
       }
+    });
 
-      // Start bot
-      this.bot.launch();
-      this.logger.log('Telegram bot started successfully.');
+    // ── /unsubscribe - Stop notifications ──
+    this.bot.command('unsubscribe', async (ctx) => {
+      try {
+        const telegramId = String(ctx.from.id);
+        await this.prisma.user.updateMany({
+          where: { telegramId },
+          data: { telegramId: null },
+        });
 
-      // Get bot info
-      const botInfo = await this.bot.telegram.getMe();
-      this.logger.log(`Bot: @${botInfo.username}`);
-    } catch (err) {
-      this.logger.error('Failed to start Telegram bot:', (err as Error).message);
-    }
+        await ctx.reply(
+          `✅ You have been unsubscribed from Beleqet notifications.\n\n` +
+            `You will no longer receive updates here.\n` +
+            `To reconnect, use /start and add your ID in profile settings.`,
+        );
+        this.logger.log(`Telegram unsubscribe: ${telegramId}`);
+      } catch (error) {
+        this.logger.error(`Error handling /unsubscribe: ${(error as Error).message}`);
+        await ctx.reply('⚠️ Something went wrong. Please try again later.');
+      }
+    });
+
+    // ── Error handling ──
+    this.bot.catch((err, ctx) => {
+      this.logger.error(`Telegram error for ${ctx.updateType}:`, (err as Error).message);
+      ctx.reply('⚠️ Something went wrong. Please try again later.').catch(() => {});
+    });
   }
 
   onModuleDestroy() {
     if (this.bot) {
-      this.bot.stop('SIGINT');
-      this.logger.log('Telegram bot stopped.');
+      try {
+        this.bot.stop('SIGINT');
+        this.logger.log('Telegram bot stopped.');
+      } catch (error) {
+        this.logger.error(`Error stopping bot: ${(error as Error).message}`);
+      }
     }
   }
 
-  // ── Send Message to User ─────────────────────────────────────────────
-
+  // ── Send Message to User ──
   async sendMessage(
     telegramId: string,
     message: string,
     parseMode: 'Markdown' | 'HTML' = 'Markdown',
   ): Promise<boolean> {
-    if (!this.bot) {
-      this.logger.warn('Telegram bot not configured, cannot send message');
+    if (!this.bot || !this.isBotStarted) {
+      this.logger.warn('Telegram bot not started, cannot send message');
       return false;
     }
 
@@ -219,12 +228,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       // Check if user blocked the bot
       if ((error as Error).message?.includes('bot was blocked by the user')) {
-        this.logger.warn(`User ${telegramId} blocked the bot`);
-        // Optionally: mark user as inactive
-        await this.prisma.user.updateMany({
-          where: { telegramId },
-          data: { telegramId: null },
-        });
+        this.logger.warn(`User ${telegramId} blocked the bot, disconnecting`);
+        await this.prisma.user
+          .updateMany({
+            where: { telegramId },
+            data: { telegramId: null },
+          })
+          .catch(() => {});
       } else {
         this.logger.error(
           `Failed to send Telegram message to ${telegramId}:`,
@@ -234,11 +244,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
   }
-  // ── Send Notification Helper ─────────────────────────────────────────
 
-  async sendNotification(userId: string, title: string, body: string, metadata?: any) {
+  // ── Send Notification Helper ──
+  async sendNotification(
+    userId: string,
+    title: string,
+    body: string,
+    metadata?: any,
+  ): Promise<boolean> {
+    if (!this.isBotStarted) {
+      this.logger.debug('Telegram bot not started, skipping notification');
+      return false;
+    }
+
     try {
-      // Get user's telegram ID
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         select: { telegramId: true, firstName: true },
@@ -253,7 +272,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const success = await this.sendMessage(user.telegramId, message);
 
       if (success) {
-        // Log notification
         await this.prisma.notification.create({
           data: {
             userId,
@@ -273,13 +291,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // ── Format Notification Message ──────────────────────────────────────
-
   private formatNotificationMessage(title: string, body: string, metadata?: any): string {
     let message = `📢 *${title}*\n\n${body}`;
 
     if (metadata) {
-      // Add metadata if available
       if (metadata.link) {
         message += `\n\n🔗 [View Details](${metadata.link})`;
       }
@@ -295,8 +310,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     return message;
   }
 
-  // ── Get User Telegram ID ─────────────────────────────────────────────
-
+  // ── Get User Telegram ID ──
   async getUserTelegramId(userId: string): Promise<string | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -305,33 +319,32 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     return user?.telegramId || null;
   }
 
-  // ── Connect Telegram to User ─────────────────────────────────────────
-
+  // ── Connect Telegram ──
   async connectTelegram(userId: string, telegramId: string): Promise<boolean> {
     try {
-      // Check if telegram ID is already used
       const existing = await this.prisma.user.findFirst({
         where: { telegramId },
       });
 
       if (existing && existing.id !== userId) {
-        this.logger.warn(`Telegram ID ${telegramId} already in use by another user`);
+        this.logger.warn(`Telegram ID ${telegramId} already in use`);
         return false;
       }
 
-      // Update user
       await this.prisma.user.update({
         where: { id: userId },
         data: { telegramId },
       });
 
       // Send welcome message
-      await this.sendMessage(
-        telegramId,
-        `✅ Your Beleqet account has been connected!\n\n` +
-          `You will now receive notifications here.\n` +
-          `Use /help to see available commands.`,
-      );
+      if (this.isBotStarted) {
+        await this.sendMessage(
+          telegramId,
+          `✅ Your Beleqet account has been connected!\n\n` +
+            `You will now receive notifications here.\n` +
+            `Use /help to see available commands.`,
+        );
+      }
 
       this.logger.log(`Telegram ${telegramId} connected to user ${userId}`);
       return true;
@@ -341,8 +354,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // ── Disconnect Telegram ──────────────────────────────────────────────
-
+  // ── Disconnect Telegram ──
   async disconnectTelegram(userId: string): Promise<boolean> {
     try {
       const user = await this.prisma.user.findUnique({
@@ -350,7 +362,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         select: { telegramId: true },
       });
 
-      if (user?.telegramId) {
+      if (user?.telegramId && this.isBotStarted) {
         await this.sendMessage(
           user.telegramId,
           `🔴 Your Beleqet account has been disconnected.\n\n` +
@@ -372,10 +384,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // ── Get Bot Status ────────────────────────────────────────────────────
-
+  // ── Get Bot Status ──
   async getBotStatus(): Promise<{ running: boolean; username?: string }> {
-    if (!this.bot) {
+    if (!this.bot || !this.isBotStarted) {
       return { running: false };
     }
 
